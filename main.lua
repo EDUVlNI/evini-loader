@@ -1,4 +1,4 @@
--- EVINI 1.2: fonte independente. Nao carrega o Nitrogen.
+-- EVINI 1.3: fonte independente. Nao carrega o Nitrogen.
 -- Alteracoes de hitbox sao locais; o servidor pode ignora-las.
 local Players = game:GetService('Players')
 local UIS = game:GetService('UserInputService')
@@ -9,7 +9,7 @@ local player = Players.LocalPlayer
 assert(player, '[EVINI] Execute em um cliente com LocalPlayer.')
 local env = (type(getgenv) == 'function' and getgenv()) or _G
 if type(env.EVINI) == 'table' and type(env.EVINI.Destroy) == 'function' then pcall(env.EVINI.Destroy) end
-local state = {enabled=false, size=8, transparent=false, mode='all', query=''}
+local state = {enabled=false, size=8, transparent=false, knockCheck=true, mode='all', query=''}
 local connections, originals = {}, {}
 local alive = true
 local green, dark = Color3.fromRGB(64,181,111), Color3.fromRGB(22,38,29)
@@ -27,11 +27,11 @@ local function connect(signal, fn)
 end
 local function round(obj, r) create('UICorner',{CornerRadius=UDim.new(0,r or 12)},obj) end
 local function text(parent, value, pos, size, fontSize)
-    return create('TextLabel',{Text=value,Position=pos,Size=size,BackgroundTransparency=1,TextColor3=Color3.fromRGB(226,234,228),Font=Enum.Font.BuilderSans,TextSize=fontSize or 14,TextXAlignment=Enum.TextXAlignment.Left,TextWrapped=true},parent)
+    return create('TextLabel',{Text=value,Position=pos,Size=size,BackgroundTransparency=1,TextColor3=Color3.fromRGB(226,234,228),Font=Enum.Font.Arcade,TextSize=fontSize or 14,TextXAlignment=Enum.TextXAlignment.Left,TextWrapped=true},parent)
 end
 local function button(parent,value,pos,size,radius)
-    local b = create('TextButton',{Text=value,Position=pos,Size=size,BackgroundColor3=Color3.fromRGB(29,34,32),TextColor3=Color3.fromRGB(170,185,176),BorderSizePixel=0,Font=Enum.Font.BuilderSansBold,TextSize=13},parent)
-    round(b,radius or 4)
+    local b = create('TextButton',{Text=value,Position=pos,Size=size,BackgroundColor3=Color3.fromRGB(19,20,20),TextColor3=Color3.fromRGB(170,185,176),BorderSizePixel=0,Font=Enum.Font.Arcade,TextSize=13},parent)
+    round(b,radius or 2)
     return b
 end
 local function restore(part)
@@ -68,6 +68,18 @@ local function resolveTarget()
     if found then return found end
     return nil,'Jogador não encontrado neste servidor.'
 end
+-- Da Hood pode marcar K.O mesmo quando o Humanoid ainda tem vida.
+local function flagOn(parent,name)
+    local value=parent and parent:FindFirstChild(name)
+    return value~=nil and value:IsA('BoolValue') and value.Value==true
+end
+local function unavailable(character,humanoid)
+    if humanoid.Health<=0 or humanoid:GetState()==Enum.HumanoidStateType.Dead then return true end
+    local effects=character:FindFirstChild('BodyEffects')
+    -- Mortos sempre sao excluidos; K.O e controlado pelo Knock Check.
+    if flagOn(effects,'Dead') then return true end
+    return state.knockCheck and flagOn(effects,'K.O')
+end
 local function apply()
     local selected,message=resolveTarget()
     reportTarget(selected,message)
@@ -79,7 +91,7 @@ local function apply()
             local character=target.Character
             local humanoid=character and character:FindFirstChildOfClass('Humanoid')
             local part=character and character:FindFirstChild('HumanoidRootPart')
-            if humanoid and humanoid.Health>0 and part and part:IsA('BasePart') then
+            if humanoid and not unavailable(character,humanoid) and part and part:IsA('BasePart') then
                 active[part]=true
                 if not originals[part] then
                     originals[part]={size=part.Size,transparency=part.Transparency,color=part.Color,material=part.Material,canCollide=part.CanCollide}
@@ -97,16 +109,16 @@ local function apply()
     for _,part in ipairs(stale) do restore(part) end
 end
 local muted=Color3.fromRGB(133,144,140)
-local surface=Color3.fromRGB(29,34,32)
-local edge=Color3.fromRGB(49,58,53)
+local surface=Color3.fromRGB(19,20,20)
+local edge=Color3.fromRGB(65,72,67)
 local crewImage='rbxthumb://type=GroupIcon&id=8440749&w=420&h=420'
-local panel=create('Frame',{Name='Hub',AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.fromScale(0.5,0.5),Size=UDim2.fromOffset(400,496),BackgroundColor3=Color3.fromRGB(19,23,21),BorderSizePixel=0,Visible=false},gui)
-round(panel,6)
+local panel=create('Frame',{Name='Hub',AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.fromScale(0.5,0.5),Size=UDim2.fromOffset(480,556),BackgroundColor3=Color3.fromRGB(15,15,16),BorderSizePixel=0,Visible=false},gui)
+round(panel,3)
 create('UIStroke',{Color=edge,Thickness=1},panel)
 local header=create('Frame',{Name='DragHandle',Size=UDim2.new(1,-90,0,72),BackgroundTransparency=1,Active=true},panel)
-local title=text(header,'EVINI',UDim2.fromOffset(22,17),UDim2.fromOffset(180,25),21)
-title.Font=Enum.Font.RobotoCondensed
-title.TextSize=26
+local title=text(header,'EVINI HITBOX',UDim2.fromOffset(22,17),UDim2.fromOffset(285,25),21)
+title.Font=Enum.Font.Arcade
+title.TextSize=20
 local subtitle=text(header,'DA HOOD  /  # DEATH',UDim2.fromOffset(23,44),UDim2.fromOffset(220,15),10)
 subtitle.TextColor3=muted
 local hide=button(panel,'−',UDim2.new(1,-80,0,21),UDim2.fromOffset(26,26)); hide.Name='Hide'
@@ -116,15 +128,15 @@ local function line(y)
 end
 line(74)
 local status=text(panel,'HITBOX',UDim2.fromOffset(22,90),UDim2.fromOffset(180,16),10)
-status.TextColor3=green; status.Font=Enum.Font.RobotoMono
+status.TextColor3=green; status.Font=Enum.Font.Arcade
 local function toggle(label,description,y,key)
-    text(panel,label,UDim2.fromOffset(22,y),UDim2.fromOffset(240,20),13)
-    local detail=text(panel,description,UDim2.fromOffset(22,y+23),UDim2.fromOffset(265,16),11)
+    text(panel,label,UDim2.fromOffset(22,y),UDim2.fromOffset(330,20),13)
+    local detail=text(panel,description,UDim2.fromOffset(22,y+23),UDim2.fromOffset(350,16),11)
     detail.TextColor3=muted
-    local b=button(panel,'',UDim2.new(1,-64,0,y+8),UDim2.fromOffset(42,22),11)
+    local b=button(panel,'',UDim2.new(1,-64,0,y+8),UDim2.fromOffset(42,22),2)
     b.Name=key; b.AutoButtonColor=false
     local dot=create('Frame',{Size=UDim2.fromOffset(16,16),Position=UDim2.fromOffset(3,3),BackgroundColor3=muted,BorderSizePixel=0},b)
-    round(dot,8)
+    round(dot,1)
     local function refresh(animated)
         local on=state[key]
         local bg=on and green or Color3.fromRGB(54,63,58)
@@ -138,13 +150,14 @@ local function toggle(label,description,y,key)
     connect(b.Activated,function() state[key]=not state[key]; refresh(true); apply() end)
     refresh(false)
 end
-toggle('Ativar hitbox','Expansão dos outros jogadores',117,'enabled')
-toggle('Box invisível','Oculta o preenchimento da box',174,'transparent')
-text(panel,'Tamanho',UDim2.fromOffset(22,230),UDim2.fromOffset(135,20),13)
-local range=text(panel,'2–30 studs',UDim2.fromOffset(22,252),UDim2.fromOffset(150,16),11)
+toggle('ATIVAR HITBOX','Expandir outros jogadores',117,'enabled')
+toggle('BOX INVISIVEL','Oculta o preenchimento',174,'transparent')
+toggle('KNOCK CHECK','Ignora jogadores derrubados',231,'knockCheck')
+text(panel,'TAMANHO DA HITBOX',UDim2.fromOffset(22,290),UDim2.fromOffset(280,20),13)
+local range=text(panel,'2–30 studs',UDim2.fromOffset(22,312),UDim2.fromOffset(150,16),11)
 range.TextColor3=muted
-local input=create('TextBox',{Name='SizeInput',Position=UDim2.new(1,-108,0,230),Size=UDim2.fromOffset(86,34),BackgroundColor3=surface,TextColor3=Color3.fromRGB(226,234,228),BorderSizePixel=0,Text='8',ClearTextOnFocus=false,Font=Enum.Font.RobotoMono,TextSize=14},panel)
-round(input,4)
+local input=create('TextBox',{Name='SizeInput',Position=UDim2.new(1,-108,0,290),Size=UDim2.fromOffset(86,34),BackgroundColor3=surface,TextColor3=Color3.fromRGB(226,234,228),BorderSizePixel=0,Text='8',ClearTextOnFocus=false,Font=Enum.Font.Arcade,TextSize=14},panel)
+round(input,2)
 create('UIStroke',{Color=edge,Thickness=1,ApplyStrokeMode=Enum.ApplyStrokeMode.Border},input)
 local function setSize(value)
     if not value or value~=value then value=state.size end
@@ -153,9 +166,9 @@ local function setSize(value)
     apply()
 end
 connect(input.FocusLost,function() setSize(tonumber((input.Text:gsub(',','.')))) end)
-line(279)
-local targetTitle=text(panel,'JOGADORES',UDim2.fromOffset(22,291),UDim2.fromOffset(180,18),11)
-targetTitle.Font=Enum.Font.RobotoMono; targetTitle.TextColor3=green
+line(339)
+local targetTitle=text(panel,'JOGADORES',UDim2.fromOffset(22,351),UDim2.fromOffset(180,18),11)
+targetTitle.Font=Enum.Font.Arcade; targetTitle.TextColor3=green
 local modes={}
 local function updateModes()
     for key,b in pairs(modes) do
@@ -163,17 +176,17 @@ local function updateModes()
         b.TextColor3=state.mode==key and Color3.fromRGB(10,28,18) or muted
     end
 end
-for i,entry in ipairs({{'all','Todos'},{'exclude','Ignorar nick'},{'only','Só este nick'}}) do
+for i,entry in ipairs({{'all','TODOS'},{'exclude','IGNORAR NICK'},{'only','SO ESTE NICK'}}) do
     local key=entry[1]
-    local b=button(panel,entry[2],UDim2.fromOffset(22+(i-1)*120,318),UDim2.fromOffset(112,30),4)
+    local b=button(panel,entry[2],UDim2.fromOffset(22+(i-1)*146,378),UDim2.fromOffset(140,30),4)
     b.Name='Mode_'..key; modes[key]=b
     connect(b.Activated,function() state.mode=key; updateModes(); apply() end)
 end
-local nick=create('TextBox',{Name='NickInput',Position=UDim2.fromOffset(22,358),Size=UDim2.new(1,-44,0,34),BackgroundColor3=surface,TextColor3=Color3.fromRGB(226,234,228),PlaceholderText='@usuario ou nome de exibição exato',PlaceholderColor3=muted,BorderSizePixel=0,Text='',ClearTextOnFocus=false,Font=Enum.Font.BuilderSans,TextSize=13,TextXAlignment=Enum.TextXAlignment.Left},panel)
-round(nick,4)
+local nick=create('TextBox',{Name='NickInput',Position=UDim2.fromOffset(22,418),Size=UDim2.new(1,-44,0,34),BackgroundColor3=surface,TextColor3=Color3.fromRGB(226,234,228),PlaceholderText='@usuario ou nome de exibição exato',PlaceholderColor3=muted,BorderSizePixel=0,Text='',ClearTextOnFocus=false,Font=Enum.Font.Arcade,TextSize=13,TextXAlignment=Enum.TextXAlignment.Left},panel)
+round(nick,2)
 create('UIPadding',{PaddingLeft=UDim.new(0,10),PaddingRight=UDim.new(0,10)},nick)
 create('UIStroke',{Color=edge,Thickness=1,ApplyStrokeMode=Enum.ApplyStrokeMode.Border},nick)
-local result=text(panel,'',UDim2.fromOffset(22,398),UDim2.new(1,-44,0,34),11)
+local result=text(panel,'',UDim2.fromOffset(22,458),UDim2.new(1,-44,0,34),11)
 result.TextColor3=muted
 reportTarget=function(target,message)
     if state.mode=='all' then result.Text='Aplicar a todos os outros jogadores.'
@@ -187,10 +200,10 @@ connect(nick.FocusLost,function()
     apply()
 end)
 updateModes(); apply()
-line(443)
-local hint=text(panel,'Ocultar interface',UDim2.fromOffset(22,459),UDim2.fromOffset(215,20),11)
+line(503)
+local hint=text(panel,'OCULTAR INTERFACE',UDim2.fromOffset(22,519),UDim2.fromOffset(215,20),11)
 hint.TextColor3=muted
-local keyButton=button(panel,'L',UDim2.new(1,-86,0,455),UDim2.fromOffset(64,28))
+local keyButton=button(panel,'L',UDim2.new(1,-86,0,515),UDim2.fromOffset(64,28))
 keyButton.Name='Keybind'
 create('UIStroke',{Color=edge,Thickness=1,ApplyStrokeMode=Enum.ApplyStrokeMode.Border},keyButton)
 local toggleKey=Enum.KeyCode.L
@@ -199,13 +212,13 @@ local captureVersion=0
 local function stopCapture()
     capturing=false; captureVersion=captureVersion+1
     keyButton.Text=toggleKey.Name
-    hint.Text='Ocultar interface'
+    hint.Text='OCULTAR INTERFACE'
 end
 connect(keyButton.Activated,function()
     if capturing then stopCapture(); return end
     capturing=true; captureVersion=captureVersion+1
     local version=captureVersion
-    keyButton.Text='…'; hint.Text='Pressione uma tecla · Esc cancela'
+    keyButton.Text='…'; hint.Text='TECLA? ESC CANCELA'
     task.delay(8,function() if alive and capturing and version==captureVersion then stopCapture() end end)
 end)
 connect(hide.Activated,function() stopCapture(); panel.Visible=false end)
@@ -244,7 +257,7 @@ end
 env.EVINI=api
 connect(close.Activated,api.Destroy)
 local elapsed=0
-connect(RunService.Heartbeat,function(dt) elapsed=elapsed+dt; if elapsed>=0.15 then elapsed=0; apply() end end)
+connect(RunService.Heartbeat,function(dt) elapsed=elapsed+dt; if elapsed>=0.05 then elapsed=0; apply() end end)
 -- Apenas o emblema da crew: sem painel, blur ou arquivos do executor.
 local splash=create('ImageLabel',{Name='CrewIntro',AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.fromScale(0.5,0.5),Size=UDim2.fromOffset(160,160),BackgroundTransparency=1,Image=crewImage,ScaleType=Enum.ScaleType.Fit,ImageTransparency=1,Visible=false},gui)
 local scale=create('UIScale',{Scale=0.75},splash)
