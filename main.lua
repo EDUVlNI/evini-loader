@@ -1,4 +1,4 @@
--- EVINI 2.4: fonte independente. Nao carrega o Nitrogen.
+-- EVINI 2.5: fonte independente. Nao carrega o Nitrogen.
 -- Alteracoes de hitbox sao locais; o servidor pode ignora-las.
 local Players = game:GetService('Players')
 local UIS = game:GetService('UserInputService')
@@ -19,8 +19,7 @@ state.fov=140; state.showFov=true; state.hitPart='Head'
 state.airEnabled=true; state.airPart='HumanoidRootPart'; state.prediction=0.12; state.airPrediction=0.12
 state.autoPrediction=false; state.autoPredMath=250; state.autoBase=0.04; state.smoothing=0.22
 state.accent='Branco';state.uiOpacity=0.06;state.uiSize=1;state.blurSize=5;state.reduceMotion=false;state.notifications=true
-state.silentEnabled=false;state.silentMode='fixed';state.silentFov=140;state.silentShowFov=true;state.silentKeyName='R'
-state.camMarker=false;state.camTracer=false;state.silentMarker=true;state.silentTracer=false;state.hideVisuals=false
+state.camMarker=false;state.camTracer=false;state.hideVisuals=false
 state.aimViewer=false;state.aimEstimate=false;state.aimLength=120
 state.blur=true; state.hideKeyName='L'; state.camKeyName='Q'
 local closing=false
@@ -30,8 +29,8 @@ local HttpService=game:GetService('HttpService')
 local settingsFile='evini-settings-'..tostring((game.GameId and game.GameId>0) and game.GameId or game.PlaceId or 0)..'.json'
 local defaults={}
 for k,v in pairs(state) do defaults[k]=v end
-local bounds={silentFov={30,500},aimLength={10,500},uiOpacity={0,0.45},uiSize={0.65,1.3},blurSize={0,12},size={2,30},fov={30,500},prediction={0,0.5},airPrediction={0,0.5},autoPredMath={100,1000},autoBase={0,0.2},smoothing={0,1}}
-local options={silentMode={fixed=true,fov=true},accent={Branco=true,Cinza=true},mode={all=true,exclude=true,only=true},hitPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true},airPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true}}
+local bounds={aimLength={10,500},uiOpacity={0,0.45},uiSize={0.65,1.3},blurSize={0,12},size={2,30},fov={30,500},prediction={0,0.5},airPrediction={0,0.5},autoPredMath={100,1000},autoBase={0,0.2},smoothing={0,1}}
+local options={accent={Branco=true,Cinza=true},mode={all=true,exclude=true,only=true},hitPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true},airPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true}}
 local persistenceStatus='Salvamento indisponível neste executor'
 local persistenceReport=function() end
 local canSave=type(writefile)=='function' and type(readfile)=='function'
@@ -47,13 +46,13 @@ local function loadSettings()
             elseif bounds[key] and value==value then state[key]=math.clamp(value,bounds[key][1],bounds[key][2])
             elseif options[key] and options[key][value] then state[key]=value
             elseif key=='query' and #value<=100 then state[key]=value
-            elseif key=='hideKeyName' or key=='camKeyName' or key=='silentKeyName' then
+            elseif key=='hideKeyName' or key=='camKeyName' then
                 local valid,code=pcall(function() return Enum.KeyCode[value] end)
                 if valid and code and code~=Enum.KeyCode.Unknown and code~=Enum.KeyCode.Escape then state[key]=value end
             end
         end
     end
-    if state.hideKeyName==state.camKeyName or state.hideKeyName==state.silentKeyName or state.camKeyName==state.silentKeyName then state.hideKeyName='L';state.camKeyName='Q';state.silentKeyName='R' end
+    if state.hideKeyName==state.camKeyName then state.hideKeyName='L';state.camKeyName='Q' end
     persistenceStatus='Configurações restauradas'
 end
 loadSettings()
@@ -321,79 +320,6 @@ local function cameraActive()
     return latched and cameraTarget~=nil
 end
 local function resetCamera() local had=cameraTarget;latched=false;cameraTarget=nil;if had then notifyTarget('Alvo liberado') end end
--- Adaptador especifico: somente MainEvent + vetor de mira no formato observado.
-local silent={target=nil,point=nil,ready=false,status='Desligado',observed=false,rewrites=0,calls=0,lastAction='—',lastType='—',error=nil}
-local bridge=nil
-local ReplicatedStorage=game:GetService('ReplicatedStorage')
-local silentKey=Enum.KeyCode[state.silentKeyName]
-local silentReport=function() end
-local resetSilent
-local function installSilent()
-    if silent.ready then return true end
-    local remote=ReplicatedStorage:FindFirstChild('MainEvent')
-    if not remote or not remote:IsA('RemoteEvent') then silent.status='MainEvent não encontrado; jogo sem adaptador';return false end
-    if type(hookmetamethod)~='function' or type(getnamecallmethod)~='function' then
-        silent.status='Executor sem hookmetamethod/getnamecallmethod';return false
-    end
-    bridge=env.EVINI_SilentBridge
-    if not bridge or bridge.version~=1 then
-        bridge={version=1,dispatch=nil}
-        local previous
-        local function handler(self,...)
-            local args=table.pack(...)
-            if getnamecallmethod()=='FireServer' and bridge.dispatch then
-                local ok,replacement=pcall(bridge.dispatch,self,args)
-                if ok and replacement then args[2]=replacement end
-            end
-            return previous(self,table.unpack(args,1,args.n))
-        end
-        local wrapped=type(newcclosure)=='function' and newcclosure(handler) or handler
-        local ok,result=pcall(function() return hookmetamethod(game,'__namecall',wrapped) end)
-        if not ok or type(result)~='function' then silent.status='Não foi possível instalar o adaptador';bridge=nil;return false end
-        previous=result;env.EVINI_SilentBridge=bridge
-    end
-    local function dispatch(self,args)
-        if not alive or closing or not state.silentEnabled or self~=remote then return nil end
-        silent.calls=silent.calls+1
-        silent.lastAction=type(args[1])=='string' and args[1]:sub(1,40) or typeof(args[1])
-        silent.lastType=typeof(args[2])
-        if (args[1]~='UpdateMousePos' and args[1]~='UpdateMousePosI') or typeof(args[2])~='Vector3' then return nil end
-        silent.observed=true
-        if capturing or UIS:GetFocusedTextBox() or not silent.target then return nil end
-        local root,hum=targetInfo(silent.target)
-        if not root or not filterCamera(silent.target,resolveTarget()) then silent.point=nil;return nil end
-        local part,air=aimPart(silent.target,hum)
-        local camera=Workspace.CurrentCamera
-        if not part or not camera or not visibleToCamera(silent.target,part,camera) then return nil end
-        -- Atualiza no instante da chamada, em vez de reutilizar o ponto do ultimo frame.
-        local point=predictedPosition(part,hum,air)
-        if point.X~=point.X or point.Y~=point.Y or point.Z~=point.Z then return nil end
-        silent.point=point;silent.rewrites=silent.rewrites+1;silent.error=nil
-        return point
-    end
-    bridge.dispatch=function(self,args)
-        local ok,result=pcall(dispatch,self,args)
-        if not ok then silent.error=tostring(result):sub(1,160);return nil end
-        return result
-    end
-    silent.ready=true;silent.status='Adaptador pronto; aguardando dados de mira'
-    return true
-end
-resetSilent=function()
-    local had=silent.target;silent.target=nil;silent.point=nil
-    if had then notifyTarget('Silent: alvo liberado') end
-end
-local function captureSilent()
-    if silent.target then resetSilent();return end
-    if not state.silentEnabled or not installSilent() then notifyTarget(silent.status);return end
-    local camera=Workspace.CurrentCamera
-    if not camera then return end
-    silent.target=acquire(camera,UIS:GetMouseLocation(),state.silentFov)
-    if silent.target then notifyTarget('Locked on: '..(silent.target.player and silent.target.player.DisplayName or silent.target.name)) else notifyTarget('Sem alvo no FOV. Tente mais perto.') end
-end
-local silentRing=create('Frame',{Name='SilentFOV',AnchorPoint=Vector2.new(0.5,0.5),BackgroundTransparency=1,Size=UDim2.fromOffset(280,280),Visible=false},overlays)
-create('UICorner',{CornerRadius=UDim.new(1,0)},silentRing)
-local silentStroke=create('UIStroke',{Color=green,Thickness=1,Transparency=0.45},silentRing);accent(silentStroke,'Color')
 local function screenLine(name)
     return create('Frame',{Name=name,AnchorPoint=Vector2.new(0.5,0.5),BorderSizePixel=0,BackgroundColor3=green,Visible=false},overlays)
 end
@@ -401,11 +327,9 @@ local function drawLine(line,a,b)
     local d=b-a;line.Position=UDim2.fromOffset((a.X+b.X)/2,(a.Y+b.Y)/2)
     line.Size=UDim2.fromOffset(d.Magnitude,1);line.Rotation=math.deg(math.atan2(d.Y,d.X));line.Visible=true
 end
-local silentDot=create('Frame',{Name='SilentTargetDot',AnchorPoint=Vector2.new(0.5,0.5),Size=UDim2.fromOffset(6,6),BackgroundColor3=green,BorderSizePixel=0,Visible=false},overlays);round(silentDot,3)
-local silentLine=screenLine('SilentTracer')
 local camDot=create('Frame',{Name='CamTargetDot',AnchorPoint=Vector2.new(0.5,0.5),Size=UDim2.fromOffset(6,6),BackgroundColor3=green,BorderSizePixel=0,Visible=false},overlays);round(camDot,3)
 local camLine=screenLine('CamTracer')
-for _,obj in ipairs({silentDot,silentLine,camDot,camLine}) do accent(obj,'BackgroundColor3') end
+for _,obj in ipairs({camDot,camLine}) do accent(obj,'BackgroundColor3') end
 local function drawTarget(camera,point,dot,line,showDot,showLine)
     dot.Visible=false;line.Visible=false
     if not point or state.hideVisuals then return end
@@ -415,32 +339,8 @@ local function drawTarget(camera,point,dot,line,showDot,showLine)
     dot.Position=UDim2.fromOffset(p.X,p.Y);dot.Visible=showDot
     if showLine then drawLine(line,UIS:GetMouseLocation(),position) end
 end
-local function updateSilent(camera)
-    if state.silentEnabled and not closing and not silent.ready then installSilent() end
+local function updateCameraVisuals(camera)
     if state.hideVisuals or not state.notifications then hideNotice() end
-    local mouse=UIS:GetMouseLocation()
-    silentRing.Position=UDim2.fromOffset(mouse.X,mouse.Y);silentRing.Size=UDim2.fromOffset(state.silentFov*2,state.silentFov*2)
-    silentRing.Visible=state.silentEnabled and state.silentShowFov and not state.hideVisuals
-    silent.point=nil
-    if not state.silentEnabled or closing or not alive then resetSilent()
-    elseif not capturing and not UIS:GetFocusedTextBox() and installSilent() then
-        if state.silentMode=='fov' then silent.target=acquire(camera,mouse,state.silentFov) end
-        if silent.target then
-            local root,hum=targetInfo(silent.target)
-            local part,air
-            if hum then part,air=aimPart(silent.target,hum) end
-            if not root or not part or not filterCamera(silent.target,resolveTarget()) or not visibleToCamera(silent.target,part,camera) then resetSilent()
-            else silent.point=predictedPosition(part,hum,air) end
-        end
-    end
-    if silent.ready then
-        if silent.error then silent.status='Erro do adaptador: '..silent.error
-        elseif not silent.observed and silent.calls==0 then silent.status='Aguardando mira. Equipe uma arma e mova o mouse. Nenhuma chamada detectada.'
-        elseif not silent.observed then silent.status='Formato não suportado: '..silent.lastAction..' / '..silent.lastType
-        elseif not silent.target then silent.status=state.silentMode=='fixed' and ('Pronto. Mire o círculo em alguém e aperte '..silentKey.Name..'.') or 'Pronto. Nenhum jogador elegível dentro do círculo.'
-        else silent.status='Alvo: '..(silent.target.player and silent.target.player.DisplayName or silent.target.name)..' · alterações locais: '..silent.rewrites end
-    end
-    drawTarget(camera,silent.point,silentDot,silentLine,state.silentMarker,state.silentTracer)
     local camPoint=nil
     if cameraTarget then local _,hum=targetInfo(cameraTarget);if hum then local part=aimPart(cameraTarget,hum);if part then camPoint=part.Position end end end
     drawTarget(camera,camPoint,camDot,camLine,state.camMarker,state.camTracer)
@@ -521,9 +421,8 @@ local function render(dt)
             end
         end
     else resetCamera() end
-    updateSilent(camera)
+    updateCameraVisuals(camera)
     if statusElapsed>=0.2 then
-        silentReport(silent.status)
         statusElapsed=0
         cameraStatus(cameraTarget and cameraTarget.name or 'Sem alvo',pingSeconds,predictionTime(false))
     end
@@ -547,7 +446,7 @@ local sidebar=piece('Navigation',0,66,138,430,-30,0)
 local body=piece('Content',146,66,474,430,30,0)
 local footer=piece('Footer',0,504,620,42,0,22)
 local title=text(header,'EVINI',UDim2.fromOffset(18,10),UDim2.fromOffset(175,23),21); title.Font=Enum.Font.BuilderSansBold;accent(title,'TextColor3')
-local sub=text(header,'v2.4 · #death · Mira, Silent e Visual',UDim2.fromOffset(19,34),UDim2.fromOffset(300,14),10); sub.Font=Enum.Font.BuilderSans; sub.TextColor3=palette.muted
+local sub=text(header,'v2.5 · #death · Cam lock, Hitbox e Visual',UDim2.fromOffset(19,34),UDim2.fromOffset(300,14),10); sub.Font=Enum.Font.BuilderSans; sub.TextColor3=palette.muted
 local hide=button(header,'−',UDim2.new(1,-74,0,15),UDim2.fromOffset(26,26)); hide.Name='Hide'
 local close=button(header,'×',UDim2.new(1,-40,0,15),UDim2.fromOffset(26,26)); close.Name='Close'
 local blur=create('BlurEffect',{Name='EVINI_Blur',Size=0},Lighting)
@@ -710,18 +609,7 @@ switch(espPage,'Ocultar todos os desenhos','hideVisuals')
 switch(espPage,'Círculo do cam lock','showFov')
 switch(espPage,'Marcador do cam lock','camMarker')
 switch(espPage,'Linha do cam lock','camTracer')
-switch(espPage,'Círculo do silent','silentShowFov')
-switch(espPage,'Marcador do silent','silentMarker')
-switch(espPage,'Linha do silent','silentTracer')
 label(espPage,'Só o essencial','Apenas o nome de exibição, sem caixa, distância ou vida. Mortos e K.O. ficam ocultos.')
-label(camPage,'Silent aim / silent lock','1. Escolha o modo. 2. Ative. 3. No modo por tecla, mire o círculo na pessoa e aperte a tecla abaixo.')
-switch(camPage,'Ligar silent','silentEnabled',function() resetSilent();if state.silentEnabled then installSilent() end end)
-choice(camPage,'Modo do silent','silentMode',{{'fixed','Apertar para prender'},{'fov','Automático no círculo'}},resetSilent)
-local silentKeyY=slot(camPage,46)
-slider(camPage,'FOV do silent · pixels','silentFov',30,500,1)
-local silentStatus=text(camPage.frame,'Desligado',UDim2.fromOffset(0,slot(camPage,76)),UDim2.new(1,0,0,70),12)
-silentStatus.Name='SilentStatus';silentStatus.TextColor3=palette.muted
-silentReport=function(message) silentStatus.Text=state.silentEnabled and message or 'Silent desligado' end
 label(camPage,'CAM LOCK + PREDICT','Clique na tecla para capturar no FOV. Clique de novo para soltar. Esc também solta.')
 local camKeyY=slot(camPage,46)
 switch(camPage,'Ativar cam lock','camEnabled',resetCamera)
@@ -755,21 +643,19 @@ local keyButtons={}
 local function refreshKeys()
     if keyButtons.hide then keyButtons.hide.Text=hideKey.Name end
     if keyButtons.cam then keyButtons.cam.Text=camBind.Name end
-    if keyButtons.silent then keyButtons.silent.Text=silentKey.Name end
 end
 local function stopCapture() capturing=nil; captureVersion=captureVersion+1; refreshKeys() end
 local function keyField(value,which)
     local p=which~='hide' and camPage or settingsPage
-    local y=which=='cam' and camKeyY or (which=='silent' and silentKeyY or slot(p,46)); rowText(p,value,y)
-    local b=button(p.frame,'',UDim2.new(1,-106,0,y),UDim2.fromOffset(106,32)); b.Name=which=='hide' and 'Keybind' or (which=='cam' and 'CamKeybind' or 'SilentKeybind'); keyButtons[which]=b
+    local y=which=='cam' and camKeyY or slot(p,46); rowText(p,value,y)
+    local b=button(p.frame,'',UDim2.new(1,-106,0,y),UDim2.fromOffset(106,32)); b.Name=which=='hide' and 'Keybind' or 'CamKeybind'; keyButtons[which]=b
     connect(b.Activated,function()
         if capturing==which then stopCapture(); return end
         stopCapture(); capturing=which; resetCamera(); b.Text='Tecla?'; local version=captureVersion
         task.delay(8,function() if alive and version==captureVersion then stopCapture() end end)
     end)
 end
-keyField('Ocultar / abrir hub','hide'); keyField('Tecla do cam lock','cam');keyField('Prender / soltar alvo','silent'); refreshKeys()
-label(settingsPage,'Diagnóstico','EVINI 2.4 · jogo '..tostring(game.PlaceId)..' · silent exige hookmetamethod/getnamecallmethod. O status na aba Mira distingue suporte de dados observados.')
+keyField('Ocultar / abrir hub','hide'); keyField('Tecla do cam lock','cam'); refreshKeys()
 local saveText=text(settingsPage.frame,persistenceStatus,UDim2.fromOffset(0,slot(settingsPage,38)),UDim2.new(1,0,0,32),11); saveText.Font=Enum.Font.BuilderSans;saveText.TextColor3=palette.muted
 persistenceReport=function(message) if alive then saveText.Text=message end end
 switch(settingsPage,'Blur ao abrir','blur',function() tween(blur,0.2,{Size=uiOpen and state.blur and state.blurSize or 0}) end)
@@ -829,26 +715,23 @@ notifyTarget=function(message)
 end
 connect(UIS.InputBegan,function(event,processed)
     if not capturing and event.KeyCode==Enum.KeyCode.Escape then
-        resetCamera();resetSilent()
-        if state.silentMode=='fov' and state.silentEnabled then state.silentEnabled=false;controlRefresh.silentEnabled();queueSave() end
+        resetCamera()
         return
     end
     if not capturing and latched and event.KeyCode==camBind then resetCamera();return end
-    if not capturing and silent.target and state.silentMode=='fixed' and event.KeyCode==silentKey then resetSilent();return end
     if UIS:GetFocusedTextBox() then return end
     if capturing then
         if event.UserInputType~=Enum.UserInputType.Keyboard then return end
         if event.KeyCode==Enum.KeyCode.Escape then stopCapture(); return end
         if processed or event.KeyCode==Enum.KeyCode.Unknown then return end
-        local assigned={hide=hideKey,cam=camBind,silent=silentKey}
+        local assigned={hide=hideKey,cam=camBind}
         for role,key in pairs(assigned) do if role~=capturing and event.KeyCode==key then keyButtons[capturing].Text='Em uso';return end end
         if event.KeyCode==Enum.KeyCode.Escape then stopCapture(); return end
-        if capturing=='hide' then hideKey=event.KeyCode;state.hideKeyName=hideKey.Name elseif capturing=='cam' then camBind=event.KeyCode;state.camKeyName=camBind.Name else silentKey=event.KeyCode;state.silentKeyName=silentKey.Name end
+        if capturing=='hide' then hideKey=event.KeyCode;state.hideKeyName=hideKey.Name else camBind=event.KeyCode;state.camKeyName=camBind.Name end
         queueSave();stopCapture(); return
     end
     if processed then return end
     if event.KeyCode==hideKey then showUI(not uiOpen)
-    elseif event.KeyCode==silentKey and not uiBusy and state.silentMode=='fixed' then captureSilent()
     elseif event.KeyCode==camBind and not uiOpen and not uiBusy then
         resetCamera()
         local camera=Workspace.CurrentCamera
@@ -862,7 +745,7 @@ end)
 connect(UIS.InputEnded,function(event)
     if sliderDrag and (event==sliderDrag.input or event.UserInputType==Enum.UserInputType.MouseButton1) then sliderDrag=nil end
 end)
-connect(UIS.WindowFocusReleased,function() resetCamera();resetSilent();sliderDrag=nil end)
+connect(UIS.WindowFocusReleased,function() resetCamera();sliderDrag=nil end)
 local dragging,dragStart,panelStart
 connect(header.InputBegan,function(event)
     if not uiBusy and (event.UserInputType==Enum.UserInputType.MouseButton1 or event.UserInputType==Enum.UserInputType.Touch) then dragging=event; dragStart=event.Position; panelStart=rootUI.Position end
@@ -880,8 +763,7 @@ connect(hide.Activated,function() stopCapture(); showUI(false) end)
 local api={Settings=state,Save=saveSettings}
 function api.Destroy()
     if not alive then return end
-    saveSettings();alive=false; animationVersion=animationVersion+1; resetCamera();resetSilent()
-    if bridge then bridge.dispatch=nil end
+    saveSettings();alive=false; animationVersion=animationVersion+1; resetCamera()
     for _,c in ipairs(connections) do c:Disconnect() end
     for _,t in ipairs(activeTweens) do t:Cancel() end
     RunService:UnbindFromRenderStep('EVINI_Camera')
