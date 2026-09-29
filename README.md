@@ -1,33 +1,27 @@
-# EVINI
+# EVINI 1.1
 
-Hub independente, de codigo-fonte aberto e legivel, com tema verde-claro. Esta versao substitui o antigo loader e **nao baixa nem executa o Nitrogen**. Como o original usa MoonSec V3, nao e uma recuperacao do seu fonte nem uma replica de todas as suas funcoes.
-
-## Executar
+Hub independente em Lua, com fundo grafite, detalhes verde-claro e controles compactos. Nao carrega o Nitrogen nem reproduz todas as suas funcoes desconhecidas.
 
 ```lua
 loadstring(game:HttpGet("https://raw.githubusercontent.com/EDUVlNI/evini-loader/main/main.lua", true))()
 ```
 
-Se o antigo Nitrogen ja estiver aberto, entre novamente no jogo antes de executar. O EVINI nao remove conexoes nem alteracoes feitas pelo script antigo.
-
 ## Controles
 
-- **L** mostra/oculta o hub, exceto ao digitar em uma caixa de texto.
-- **EVINI** na lateral tambem mostra/oculta o hub.
-- **Hitbox expander** inicia desligado; altera localmente o HumanoidRootPart dos outros jogadores vivos.
-- **Tamanho** por slider ou campo numerico, de 2 a 30 studs. Padrao: 8.
-- **Box totalmente transparente** torna a parte alterada invisivel. Desligado: verde com transparencia de 65%.
-- **Ignorar meu time** permite excluir jogadores do mesmo time nao neutro.
-- Arraste pelo cabecalho para mover o hub.
-- **–** oculta. **×** encerra, desconecta eventos e restaura as propriedades salvas.
-- Reexecutar o EVINI encerra a instancia EVINI anterior antes de criar outra.
+- **L** oculta e mostra o hub. Clique na tecla no rodape e pressione outra para trocar. Esc cancela; a captura expira em 8 segundos. A escolha vale para a instancia atual.
+- Nao ha botao flutuante no canto da tela. Use a tecla escolhida para reabrir.
+- **Ativar hitbox** inicia desligado. Expande localmente o HumanoidRootPart dos outros jogadores vivos.
+- **Box invisivel** controla a transparencia total. Desligado: box verde com transparencia de 65%.
+- **Ignorar equipe** exclui jogadores do mesmo time nao neutro.
+- **Tamanho** usa apenas campo numerico, de 2 a 30 studs. Pressione Enter ou clique fora para aplicar. Aceita ponto ou virgula decimal; entrada invalida mantem o ultimo tamanho.
+- Arraste o cabecalho para mover. **−** oculta; **×** encerra e restaura as partes alteradas.
 
 ## Abertura
 
-Foto do cachorro fornecida pelo usuario, sem blur, com animacao de escala tipo pop. A foto precisa de `getcustomasset` (ou `getsynasset`) e `writefile`. E baixada do repositorio e salva como `evini-dog-v1.jpg` no armazenamento do executor. Sem esses recursos, ou se a imagem falhar, aparece um icone de cachorro. O carregamento da foto tem espera inicial limitada a 3 segundos; nao impede o hub de abrir.
+Emblema do grupo Roblox **8440749 (# DEATH)**, usando `rbxthumb` nativo. Apenas a imagem com uma animacao curta, sem cartao, cachorro, blur ou arquivos locais. Se a imagem nao carregar, o hub abre sem a animacao.
 
-## Limites e verificacao
+## Verificacao e limites
 
-Requer ambiente cliente com `game:HttpGet` e `loadstring` para a linha acima. A expansao e local: jogos com validacao no servidor, raycasts proprios ou personagens personalizados podem ignorar a alteracao. Nao altera a logica de dano no servidor.
+Sintaxe e logica verificadas com APIs simuladas: ativacao, transparencia, tamanho, equipe, respawn, restauracao, ocultar/mostrar e troca de tecla. Aparencia e carregamento real da imagem ainda precisam ser conferidos no Roblox.
 
-O fonte tem verificacao de sintaxe e testes com simulacao das APIs. Isso nao substitui teste real no Roblox: interface, executor, imagem e efeito nos acertos ainda precisam de verificacao no jogo.
+A expansao e local: jogos com validacao no servidor, raycasts proprios ou personagens personalizados podem ignorar a alteracao. Reexecutar encerra a instancia EVINI anterior; se o antigo Nitrogen ainda estiver ativo, entre novamente no jogo primeiro.

@@ -1,4 +1,4 @@
--- EVINI 1.0: fonte independente. Nao carrega o Nitrogen.
+-- EVINI 1.1: fonte independente. Nao carrega o Nitrogen.
 -- Alteracoes de hitbox sao locais; o servidor pode ignora-las.
 local Players = game:GetService('Players')
 local UIS = game:GetService('UserInputService')
@@ -27,11 +27,11 @@ local function connect(signal, fn)
 end
 local function round(obj, r) create('UICorner',{CornerRadius=UDim.new(0,r or 12)},obj) end
 local function text(parent, value, pos, size, fontSize)
-    return create('TextLabel',{Text=value,Position=pos,Size=size,BackgroundTransparency=1,TextColor3=dark,Font=Enum.Font.Gotham,TextSize=fontSize or 14,TextXAlignment=Enum.TextXAlignment.Left,TextWrapped=true},parent)
+    return create('TextLabel',{Text=value,Position=pos,Size=size,BackgroundTransparency=1,TextColor3=Color3.fromRGB(226,234,228),Font=Enum.Font.Gotham,TextSize=fontSize or 14,TextXAlignment=Enum.TextXAlignment.Left,TextWrapped=true},parent)
 end
-local function button(parent,value,pos,size)
-    local b = create('TextButton',{Text=value,Position=pos,Size=size,BackgroundColor3=green,TextColor3=dark,BorderSizePixel=0,Font=Enum.Font.GothamBold,TextSize=13},parent)
-    round(b,9)
+local function button(parent,value,pos,size,radius)
+    local b = create('TextButton',{Text=value,Position=pos,Size=size,BackgroundColor3=Color3.fromRGB(29,34,32),TextColor3=Color3.fromRGB(170,185,176),BorderSizePixel=0,Font=Enum.Font.GothamBold,TextSize=13},parent)
+    round(b,radius or 6)
     return b
 end
 local function restore(part)
@@ -74,79 +74,108 @@ local function apply()
     for part in pairs(originals) do if not active[part] then table.insert(stale,part) end end
     for _,part in ipairs(stale) do restore(part) end
 end
-local panel=create('Frame',{Name='Hub',AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.fromScale(0.5,0.5),Size=UDim2.fromOffset(360,380),BackgroundColor3=Color3.fromRGB(235,249,235),BorderSizePixel=0,Visible=false},gui)
-round(panel,18)
-create('UIStroke',{Color=green,Thickness=2},panel)
-local header=create('Frame',{Size=UDim2.new(1,0,0,64),BackgroundTransparency=1,Active=true},panel)
-local title=text(header,'EVINI',UDim2.fromOffset(20,10),UDim2.fromOffset(220,28),25)
+local muted=Color3.fromRGB(133,144,140)
+local surface=Color3.fromRGB(29,34,32)
+local edge=Color3.fromRGB(49,58,53)
+local crewImage='rbxthumb://type=GroupIcon&id=8440749&w=420&h=420'
+local panel=create('Frame',{Name='Hub',AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.fromScale(0.5,0.5),Size=UDim2.fromOffset(384,406),BackgroundColor3=Color3.fromRGB(19,23,21),BorderSizePixel=0,Visible=false},gui)
+round(panel,12)
+create('UIStroke',{Color=edge,Thickness=1},panel)
+local header=create('Frame',{Name='DragHandle',Size=UDim2.new(1,-90,0,72),BackgroundTransparency=1,Active=true},panel)
+local title=text(header,'EVINI',UDim2.fromOffset(22,17),UDim2.fromOffset(180,25),21)
 title.Font=Enum.Font.GothamBold
-text(header,'HITBOX  /  L para mostrar ou ocultar',UDim2.fromOffset(20,39),UDim2.fromOffset(295,18),11)
-local hide=button(header,'–',UDim2.new(1,-76,0,16),UDim2.fromOffset(28,28))
-local close=button(header,'×',UDim2.new(1,-42,0,16),UDim2.fromOffset(28,28))
-local function toggle(label,y,key)
-    text(panel,label,UDim2.fromOffset(20,y),UDim2.fromOffset(222,34),14)
-    local b=button(panel,'',UDim2.new(1,-99,0,y),UDim2.fromOffset(79,34))
-    local function refresh()
-        b.Text=state[key] and 'LIGADO' or 'DESLIG.'
-        b.BackgroundColor3=state[key] and green or Color3.fromRGB(212,224,214)
-    end
-    connect(b.Activated,function() state[key]=not state[key]; refresh(); apply() end)
-    refresh()
+local subtitle=text(header,'# DEATH  /  CONTROLS',UDim2.fromOffset(23,44),UDim2.fromOffset(220,15),10)
+subtitle.TextColor3=muted
+local hide=button(panel,'−',UDim2.new(1,-80,0,21),UDim2.fromOffset(26,26)); hide.Name='Hide'
+local close=button(panel,'×',UDim2.new(1,-46,0,21),UDim2.fromOffset(26,26)); close.Name='Close'
+local function line(y)
+    create('Frame',{Position=UDim2.fromOffset(22,y),Size=UDim2.new(1,-44,0,1),BackgroundColor3=edge,BorderSizePixel=0},panel)
 end
-toggle('Hitbox expander',78,'enabled')
-toggle('Box totalmente transparente',123,'transparent')
-toggle('Ignorar meu time',168,'teamCheck')
-text(panel,'Tamanho da box',UDim2.fromOffset(20,221),UDim2.fromOffset(215,28),14)
-local input=create('TextBox',{Position=UDim2.new(1,-90,0,216),Size=UDim2.fromOffset(70,34),BackgroundColor3=Color3.new(1,1,1),TextColor3=dark,BorderSizePixel=0,Text='8',ClearTextOnFocus=false,Font=Enum.Font.GothamBold,TextSize=15},panel)
-round(input,8)
-local slider=create('TextButton',{Text='',AutoButtonColor=false,BackgroundTransparency=1,Position=UDim2.fromOffset(20,258),Size=UDim2.new(1,-40,0,30)},panel)
-local track=create('Frame',{Position=UDim2.fromOffset(0,12),Size=UDim2.new(1,0,0,6),BackgroundColor3=Color3.fromRGB(205,221,208),BorderSizePixel=0},slider)
-round(track,3)
-local fill=create('Frame',{Size=UDim2.fromScale(0,1),BackgroundColor3=green,BorderSizePixel=0},track)
-round(fill,3)
-local knob=create('Frame',{AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.fromScale(0,0.5),Size=UDim2.fromOffset(18,18),BackgroundColor3=Color3.fromRGB(89,161,105),BorderSizePixel=0},track)
-round(knob,9)
+line(74)
+local status=text(panel,'HITBOX',UDim2.fromOffset(22,90),UDim2.fromOffset(180,16),10)
+status.TextColor3=green; status.Font=Enum.Font.GothamBold
+local function toggle(label,description,y,key)
+    text(panel,label,UDim2.fromOffset(22,y),UDim2.fromOffset(240,20),13)
+    local detail=text(panel,description,UDim2.fromOffset(22,y+23),UDim2.fromOffset(265,16),11)
+    detail.TextColor3=muted
+    local b=button(panel,'',UDim2.new(1,-64,0,y+8),UDim2.fromOffset(42,22),11)
+    b.Name=key; b.AutoButtonColor=false
+    local dot=create('Frame',{Size=UDim2.fromOffset(16,16),Position=UDim2.fromOffset(3,3),BackgroundColor3=muted,BorderSizePixel=0},b)
+    round(dot,8)
+    local function refresh(animated)
+        local on=state[key]
+        local bg=on and green or Color3.fromRGB(54,63,58)
+        local position=UDim2.fromOffset(on and 23 or 3,3)
+        local color=on and Color3.fromRGB(22,43,29) or Color3.fromRGB(162,174,166)
+        if animated then
+            TweenService:Create(b,TweenInfo.new(0.12),{BackgroundColor3=bg}):Play()
+            TweenService:Create(dot,TweenInfo.new(0.12),{Position=position,BackgroundColor3=color}):Play()
+        else b.BackgroundColor3=bg; dot.Position=position; dot.BackgroundColor3=color end
+    end
+    connect(b.Activated,function() state[key]=not state[key]; refresh(true); apply() end)
+    refresh(false)
+end
+toggle('Ativar hitbox','Expansão dos outros jogadores',117,'enabled')
+toggle('Box invisível','Oculta o preenchimento da box',174,'transparent')
+toggle('Ignorar equipe','Mantém seu time sem alterações',231,'teamCheck')
+line(284)
+text(panel,'Tamanho',UDim2.fromOffset(22,301),UDim2.fromOffset(135,20),13)
+local range=text(panel,'2–30 studs',UDim2.fromOffset(22,323),UDim2.fromOffset(150,16),11)
+range.TextColor3=muted
+local input=create('TextBox',{Name='SizeInput',Position=UDim2.new(1,-108,0,302),Size=UDim2.fromOffset(86,34),BackgroundColor3=surface,TextColor3=Color3.fromRGB(226,234,228),BorderSizePixel=0,Text='8',ClearTextOnFocus=false,Font=Enum.Font.GothamMedium,TextSize=14},panel)
+round(input,6)
+create('UIStroke',{Color=edge,Thickness=1,ApplyStrokeMode=Enum.ApplyStrokeMode.Border},input)
 local function setSize(value)
     if not value or value~=value then value=state.size end
     state.size=math.floor(math.clamp(value,2,30)*10+0.5)/10
     input.Text=tostring(state.size)
-    local ratio=(state.size-2)/28
-    fill.Size=UDim2.fromScale(ratio,1); knob.Position=UDim2.fromScale(ratio,0.5)
     apply()
 end
-setSize(state.size)
-text(panel,'2 studs',UDim2.fromOffset(20,289),UDim2.fromOffset(100,16),11)
-local maxLabel=text(panel,'30 studs',UDim2.new(1,-100,0,289),UDim2.fromOffset(80,16),11)
-maxLabel.TextXAlignment=Enum.TextXAlignment.Right
-text(panel,'Alteração local: o efeito nos acertos depende do jogo.\nFechar restaura as partes alteradas.',UDim2.fromOffset(20,321),UDim2.new(1,-40,0,42),12)
-local launcher=button(gui,'EVINI',UDim2.fromOffset(14,130),UDim2.fromOffset(78,34))
-launcher.Visible=false
-connect(launcher.Activated,function() panel.Visible=not panel.Visible end)
-connect(hide.Activated,function() panel.Visible=false end)
-connect(input.FocusLost,function() setSize(tonumber(input.Text)) end)
-connect(UIS.InputBegan,function(event,processed)
-    if not processed and not UIS:GetFocusedTextBox() and event.KeyCode==Enum.KeyCode.L then panel.Visible=not panel.Visible end
-end)
-local sliding,dragging,dragStart,panelStart
-local function slide(position)
-    if track.AbsoluteSize.X>0 then setSize(2+math.clamp((position.X-track.AbsolutePosition.X)/track.AbsoluteSize.X,0,1)*28) end
+connect(input.FocusLost,function() setSize(tonumber((input.Text:gsub(',','.')))) end)
+line(351)
+local hint=text(panel,'Ocultar interface',UDim2.fromOffset(22,366),UDim2.fromOffset(215,20),11)
+hint.TextColor3=muted
+local keyButton=button(panel,'L',UDim2.new(1,-86,0,362),UDim2.fromOffset(64,28))
+keyButton.Name='Keybind'
+create('UIStroke',{Color=edge,Thickness=1,ApplyStrokeMode=Enum.ApplyStrokeMode.Border},keyButton)
+local toggleKey=Enum.KeyCode.L
+local capturing=false
+local captureVersion=0
+local function stopCapture()
+    capturing=false; captureVersion=captureVersion+1
+    keyButton.Text=toggleKey.Name
+    hint.Text='Ocultar interface'
 end
-connect(slider.InputBegan,function(event)
-    if event.UserInputType==Enum.UserInputType.MouseButton1 or event.UserInputType==Enum.UserInputType.Touch then sliding=event; slide(event.Position) end
+connect(keyButton.Activated,function()
+    if capturing then stopCapture(); return end
+    capturing=true; captureVersion=captureVersion+1
+    local version=captureVersion
+    keyButton.Text='…'; hint.Text='Pressione uma tecla · Esc cancela'
+    task.delay(8,function() if alive and capturing and version==captureVersion then stopCapture() end end)
 end)
+connect(hide.Activated,function() stopCapture(); panel.Visible=false end)
+connect(UIS.InputBegan,function(event,processed)
+    if UIS:GetFocusedTextBox() then return end
+    if capturing then
+        if event.UserInputType~=Enum.UserInputType.Keyboard then return end
+        if event.KeyCode==Enum.KeyCode.Escape then stopCapture(); return end
+        if processed or event.KeyCode==Enum.KeyCode.Unknown then return end
+        toggleKey=event.KeyCode; stopCapture(); return
+    end
+    if not processed and event.KeyCode==toggleKey then panel.Visible=not panel.Visible end
+end)
+local dragging,dragStart,panelStart
 connect(header.InputBegan,function(event)
     if event.UserInputType==Enum.UserInputType.MouseButton1 or event.UserInputType==Enum.UserInputType.Touch then dragging=event; dragStart=event.Position; panelStart=panel.Position end
 end)
 connect(UIS.InputChanged,function(event)
     local mouse=event.UserInputType==Enum.UserInputType.MouseMovement
-    if sliding and (event==sliding or (mouse and sliding.UserInputType==Enum.UserInputType.MouseButton1)) then slide(event.Position) end
     if dragging and (event==dragging or (mouse and dragging.UserInputType==Enum.UserInputType.MouseButton1)) then
         local d=event.Position-dragStart
         panel.Position=UDim2.new(panelStart.X.Scale,panelStart.X.Offset+d.X,panelStart.Y.Scale,panelStart.Y.Offset+d.Y)
     end
 end)
 connect(UIS.InputEnded,function(event)
-    if event==sliding or event.UserInputType==Enum.UserInputType.MouseButton1 then sliding=nil end
     if event==dragging or event.UserInputType==Enum.UserInputType.MouseButton1 then dragging=nil end
 end)
 local api={}
@@ -161,46 +190,35 @@ env.EVINI=api
 connect(close.Activated,api.Destroy)
 local elapsed=0
 connect(RunService.Heartbeat,function(dt) elapsed=elapsed+dt; if elapsed>=0.15 then elapsed=0; apply() end end)
--- Foto do usuario; suporte a assets locais e necessario para exibi-la.
-local splash=create('Frame',{AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.fromScale(0.5,0.5),Size=UDim2.fromOffset(230,264),BackgroundColor3=Color3.new(1,1,1),BorderSizePixel=0},gui)
-splash.Visible=false
-round(splash,20)
-create('UIStroke',{Color=green,Thickness=3},splash)
-local scale=create('UIScale',{Scale=0.1},splash)
-local fallback=text(splash,'🐶',UDim2.fromOffset(10,10),UDim2.fromOffset(210,206),92)
-fallback.TextXAlignment=Enum.TextXAlignment.Center
-local photo=create('ImageLabel',{Position=UDim2.fromOffset(10,10),Size=UDim2.fromOffset(210,206),BackgroundTransparency=1,ScaleType=Enum.ScaleType.Fit,Image='',Visible=false},splash)
-local splashTitle=text(splash,'EVINI',UDim2.fromOffset(10,222),UDim2.fromOffset(210,30),22)
-splashTitle.TextXAlignment=Enum.TextXAlignment.Center; splashTitle.Font=Enum.Font.GothamBold
+-- Apenas o emblema da crew: sem painel, blur ou arquivos do executor.
+local splash=create('ImageLabel',{Name='CrewIntro',AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.fromScale(0.5,0.5),Size=UDim2.fromOffset(160,160),BackgroundTransparency=1,Image=crewImage,ScaleType=Enum.ScaleType.Fit,ImageTransparency=1,Visible=false},gui)
+local scale=create('UIScale',{Scale=0.75},splash)
 local photoReady=false
+local introDone=false
+local function revealHub()
+    if not alive or introDone then return end
+    introDone=true
+    splash:Destroy(); panel.Visible=true
+end
+-- Watchdog tambem cobre eventual falha na animacao ou no preload.
+task.delay(5,revealHub)
 task.spawn(function()
-    local assetLoader=getcustomasset or getsynasset
-    if type(assetLoader)~='function' or type(writefile)~='function' then photoReady=true; return end
-    pcall(function()
-        local file='evini-dog-v1.jpg'
-        if type(isfile)~='function' or not isfile(file) then
-            local bytes=game:HttpGet('https://raw.githubusercontent.com/EDUVlNI/evini-loader/main/assets/dog.jpg',true)
-            if not alive or not splash.Parent then return end
-            writefile(file,bytes)
-        end
-        if not alive or not splash.Parent then return end
-        photo.Image=assetLoader(file)
-        ContentProvider:PreloadAsync({photo})
-        if alive and splash.Parent and photo.IsLoaded then photo.Visible=true; fallback.Visible=false end
-    end)
+    pcall(function() ContentProvider:PreloadAsync({splash}) end)
     photoReady=true
 end)
 task.spawn(function()
-    local deadline=os.clock()+3
+    local deadline=os.clock()+2.5
     while alive and not photoReady and os.clock()<deadline do task.wait(0.05) end
-    if not alive then return end
+    if not alive or introDone then return end
+    if not splash.IsLoaded then revealHub(); return end
     splash.Visible=true
-    TweenService:Create(scale,TweenInfo.new(0.45,Enum.EasingStyle.Back,Enum.EasingDirection.Out),{Scale=1}):Play()
-    task.wait(1.8)
-    if not alive then return end
-    local out=TweenService:Create(scale,TweenInfo.new(0.18,Enum.EasingStyle.Back,Enum.EasingDirection.In),{Scale=0})
-    out:Play(); out.Completed:Wait()
-    if not alive then return end
-    splash:Destroy(); panel.Visible=true; launcher.Visible=true
+    TweenService:Create(scale,TweenInfo.new(0.32,Enum.EasingStyle.Back,Enum.EasingDirection.Out),{Scale=1}):Play()
+    TweenService:Create(splash,TweenInfo.new(0.2),{ImageTransparency=0}):Play()
+    task.wait(0.85)
+    if not alive or introDone then return end
+    TweenService:Create(scale,TweenInfo.new(0.2),{Scale=0.92}):Play()
+    local fade=TweenService:Create(splash,TweenInfo.new(0.2),{ImageTransparency=1})
+    fade:Play(); fade.Completed:Wait()
+    revealHub()
 end)
 return api
