@@ -1,4 +1,4 @@
--- EVINI 2.5: fonte independente. Nao carrega o Nitrogen.
+-- EVINI 2.6: fonte independente. Nao carrega o Nitrogen.
 -- Alteracoes de hitbox sao locais; o servidor pode ignora-las.
 local Players = game:GetService('Players')
 local UIS = game:GetService('UserInputService')
@@ -446,7 +446,7 @@ local sidebar=piece('Navigation',0,66,138,430,-30,0)
 local body=piece('Content',146,66,474,430,30,0)
 local footer=piece('Footer',0,504,620,42,0,22)
 local title=text(header,'EVINI',UDim2.fromOffset(18,10),UDim2.fromOffset(175,23),21); title.Font=Enum.Font.BuilderSansBold;accent(title,'TextColor3')
-local sub=text(header,'v2.5 · #death · Cam lock, Hitbox e Visual',UDim2.fromOffset(19,34),UDim2.fromOffset(300,14),10); sub.Font=Enum.Font.BuilderSans; sub.TextColor3=palette.muted
+local sub=text(header,'v2.6 · #death · Cam lock, Hitbox e Visual',UDim2.fromOffset(19,34),UDim2.fromOffset(300,14),10); sub.Font=Enum.Font.BuilderSans; sub.TextColor3=palette.muted
 local hide=button(header,'−',UDim2.new(1,-74,0,15),UDim2.fromOffset(26,26)); hide.Name='Hide'
 local close=button(header,'×',UDim2.new(1,-40,0,15),UDim2.fromOffset(26,26)); close.Name='Close'
 local blur=create('BlurEffect',{Name='EVINI_Blur',Size=0},Lighting)
@@ -606,7 +606,6 @@ aimReport=function(exact,estimated)
 end
 label(espPage,'Visibilidade','Ocultar estes desenhos não desliga o recurso de mira.')
 switch(espPage,'Ocultar todos os desenhos','hideVisuals')
-switch(espPage,'Círculo do cam lock','showFov')
 switch(espPage,'Marcador do cam lock','camMarker')
 switch(espPage,'Linha do cam lock','camTracer')
 label(espPage,'Só o essencial','Apenas o nome de exibição, sem caixa, distância ou vida. Mortos e K.O. ficam ocultos.')
@@ -625,6 +624,7 @@ slider(predPage,'Auto Pred Math','autoPredMath',100,1000,1)
 field(predPage,'Base automática · segundos','autoBase',0,0.2,0.005)
 slider(predPage,'Previsão manual · segundos','prediction',0,0.5,0.001)
 
+switch(camPage,'Mostrar círculo do FOV','showFov')
 slider(camPage,'Raio do FOV · pixels','fov',30,500,1)
 choice(camPage,'Parte do corpo','hitPart',{{'Head','Cabeça'},{'UpperTorso','Tronco'},{'LowerTorso','Tronco baixo'},{'HumanoidRootPart','Centro'}},function() cameraTarget=nil end)
 switch(camPage,'Verificar paredes','wallCheck')
@@ -703,7 +703,7 @@ cameraStatus=function(name,ping,pred)
 end
 local toast=create('Frame',{Name='TargetNotice',AnchorPoint=Vector2.new(0.5,1),Position=UDim2.new(0.5,0,1,-38),Size=UDim2.fromOffset(300,58),BackgroundColor3=palette.bg,BorderSizePixel=0,Visible=false},overlays)
 round(toast,7)
-local toastTitle=text(toast,'EVINI · #death · 8440749',UDim2.fromOffset(14,8),UDim2.fromOffset(272,18),12);accent(toastTitle,'TextColor3')
+local toastTitle=text(toast,'EVINI',UDim2.fromOffset(14,8),UDim2.fromOffset(272,18),12);accent(toastTitle,'TextColor3')
 local toastBody=text(toast,'',UDim2.fromOffset(14,29),UDim2.fromOffset(272,19),12)
 local toastVersion=0
 hideNotice=function() toastVersion=toastVersion+1;toast.Visible=false end
@@ -738,7 +738,7 @@ connect(UIS.InputBegan,function(event,processed)
         if state.camEnabled and camera and not closing then
             cameraTarget=acquire(camera,UIS:GetMouseLocation())
             latched=cameraTarget~=nil
-            if cameraTarget then notifyTarget('Locked on: '..(cameraTarget.player and cameraTarget.player.DisplayName or cameraTarget.name)) end
+            if cameraTarget then notifyTarget('locked in '..(cameraTarget.player and ('@'..cameraTarget.player.Name) or cameraTarget.name)) end
         end
     end
 end)
