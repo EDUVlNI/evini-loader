@@ -1,6 +1,6 @@
-# EVINI 2.0
+# EVINI 2.1
 
-Hub independente e legivel para clientes Roblox. Abas HITBOX, ESP, CAM LOCK, PREDICT e INTERFACE; tema grafite/verde, entrada e saida em quatro pecas, blur leve opcional e emblema da crew 8440749.
+Hub independente e legivel para clientes Roblox. Abas HITBOX, ESP, CAM LOCK (com previsao) e INTERFACE; tema grafite/verde, entrada e saida em quatro pecas, blur leve opcional e emblema da crew 8440749.
 
 ```lua
 loadstring(game:HttpGet("https://raw.githubusercontent.com/EDUVlNI/evini-loader/main/main.lua", true))()
@@ -12,12 +12,12 @@ Nao carrega Nitrogen, Azure, Luarmor ou bibliotecas de terceiros. O fonte public
 
 1. Em **CAM LOCK**, ative o cam lock e ajuste o raio FOV.
 2. Escolha Cabeca, Tronco, Tronco baixo ou Centro.
-3. O padrao e **segurar Q** para acompanhar um alvo dentro do circulo do mouse. Ha tambem **alternar Q** e **automatico**.
+3. Pressione **Q uma vez** para capturar a pessoa mais proxima do mouse dentro do FOV. Pressione **Q novamente**, ou **Esc**, para soltar. A tecla pode ser trocada dentro de CAM LOCK. Nao ha captura automatica, captura ao passar o mouse nem troca automatica de alvo.
 4. **L** oculta/abre o hub. A camera fica livre enquanto o hub esta aberto. As duas teclas podem ser trocadas em INTERFACE; a mesma tecla nao pode exercer as duas funcoes.
 5. Em **ESP**, ative jogadores e/ou entidades. Verde identifica jogadores e ambar identifica NPCs.
-6. Em **PREDICT**, ajuste o tempo manual ou ative a estimativa pelo ping. Os controles tem slider e campo numerico.
+6. Na mesma aba **CAM LOCK**, use **Ponto de partida 80–120 ms**, ou ajuste a previsao manual/automatica. Os controles tem slider e campo numerico.
 
-Hitbox, ESP e cam lock iniciam desligados. Knock Check e verificacao de paredes iniciam ligados. Mantenha os recursos que nao estiver usando desligados.
+Na primeira execucao, hitbox, ESP e cam lock iniciam desligados; nas seguintes, as preferencias salvas sao restauradas sem restaurar o lock em uma pessoa. Knock Check e verificacao de paredes iniciam ligados. Mantenha os recursos que nao estiver usando desligados.
 
 ## Hitbox e filtros
 
@@ -37,18 +37,24 @@ As caixas usam cabeca/centro e uma altura estimada para nao crescer junto com a 
 
 ## Cam lock e FOV
 
-O FOV e um **raio em pixels ao redor do mouse**, nao uma alteracao do campo de visao da camera. Escolhe o alvo elegivel mais proximo do mouse e o mantem enquanto continuar vivo, visivel na tela, dentro do circulo e permitido pelos filtros. Pode verificar paredes, ignorar equipe e incluir NPCs.
+O FOV e um **raio em pixels ao redor do mouse**, nao uma alteracao do campo de visao da camera. A captura ocorre somente ao pressionar a tecla. O FOV limita a captura inicial; depois o mesmo alvo e mantido enquanto valido. Se morrer, ficar KO, sair da tela, deixar os filtros ou ficar bloqueado por parede, o lock e solto e exige nova apertada. Pressionar a tecla com o circulo vazio nao arma uma captura futura. Pode verificar paredes, ignorar equipe e incluir NPCs.
 
 A camera e ajustada depois da camera padrao do Roblox, com suavizacao independente da taxa de frames. Em R6, Tronco/Tronco baixo usam Torso; outras partes ausentes usam HumanoidRootPart ou PrimaryPart quando disponivel. Nao ha modificacao de remotes, silent aim, disparo automatico ou garantia de acerto.
 
 ## Ping e Air Part
 
 - **Manual:** posicao observada + velocidade multiplicada pelo tempo em segundos.
-- **Automatico:** usa metade do RTT retornado por `LocalPlayer:GetNetworkPing()`, com media suavizada e ganho ajustavel. E apenas uma estimativa inicial; se a leitura falhar, retorna ao valor manual.
+- **Automatico / Auto Pred Math:** formula propria do EVINI: `base + ping_em_segundos * (250 / Math)`, limitada a 0–0,5 segundo. O ping usa `LocalPlayer:GetNetworkPing()` suavizado. O ponto de partida usa Math 250 e base 0,040: 80 ms resulta em 0,120 s; 120 ms em 0,160 s. Aumentar Math reduz a antecipacao. Nao e uma reproducao verificada da formula do Azure. Se a leitura falhar, retorna ao valor manual.
 - **Air Part:** troca a parte durante Jumping/Freefall. Aplica velocidade e uma estimativa de queda usando a gravidade do jogo. Ha tempo manual separado para o ar; no automatico, o ping define o tempo dos dois casos.
 - Previsao limitada a 0–0,5 segundo e velocidade observada limitada a 250 studs/s para evitar deslocamentos extremos.
 
 Isso nao melhora Wi-Fi, nao reduz ping, nao conhece velocidade de bala nem a compensacao de lag de cada arma/servidor. Extrapolacao linear pode errar em mudancas bruscas de direcao, impulsos e pulos personalizados.
+
+## Salvamento
+
+Preferencias e teclas sao gravadas automaticamente, apos 0,35 s sem novas alteracoes, e ao fechar/reexecutar. Arquivo `evini-settings-<GameId>.json` no armazenamento local do executor, separado por experiencia Roblox (PlaceId como alternativa). Nao salva alvo capturado nem ativa o lock ao reabrir.
+
+Requer `readfile` e `writefile`. A aba INTERFACE mostra sucesso, indisponibilidade ou falha. Sem suporte, o hub funciona sem persistencia. O JSON e validado; arquivos invalidos retornam aos padroes. Nao sincroniza entre dispositivos ou executores, e uma interrupcao abrupta antes da gravacao pode perder a ultima alteracao.
 
 ## Ciclo de vida e compatibilidade
 
@@ -58,7 +64,7 @@ Base para R6/R15 com Humanoid; nao garante funcionamento universal. Jogos com ca
 
 ## Verificacao
 
-Compilacao Lua e execucao com APIs simuladas, incluindo inicializacao completa, KO/recuperacao, filtros, ESP de jogadores/NPCs, coordenadas do FOV, lock por segurar/alternar/automatico, paredes, equipe, Air Part, gravidade, ping e fallback, R6, atalhos, inversao rapida de animacao e limpeza/restauracao. Testes simulados nao confirmam aparencia, performance nem compatibilidade em uma sessao Roblox.
+Compilacao Lua e execucao com APIs simuladas, incluindo inicializacao completa, KO/recuperacao, filtros, ESP de jogadores/NPCs, coordenadas do FOV, captura apenas por tecla, soltura e ausencia de recaptura automatica, paredes, equipe, Air Part, gravidade, ping e fallback, R6, atalhos, inversao rapida de animacao e limpeza/restauracao. Foram acrescentados testes de salvamento/restauracao, teclas, arquivo corrompido e executor sem armazenamento. Testes simulados nao confirmam aparencia, performance nem compatibilidade em uma sessao Roblox.
 
 ## Referencias consultadas
 
