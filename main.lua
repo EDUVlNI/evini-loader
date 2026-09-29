@@ -1,4 +1,4 @@
--- EVINI 2.1: fonte independente. Nao carrega o Nitrogen.
+-- EVINI 2.2: fonte independente. Nao carrega o Nitrogen.
 -- Alteracoes de hitbox sao locais; o servidor pode ignora-las.
 local Players = game:GetService('Players')
 local UIS = game:GetService('UserInputService')
@@ -13,11 +13,12 @@ assert(player, '[EVINI] Execute em um cliente com LocalPlayer.')
 local env = (type(getgenv) == 'function' and getgenv()) or _G
 if type(env.EVINI) == 'table' and type(env.EVINI.Destroy) == 'function' then pcall(env.EVINI.Destroy) end
 local state = {enabled=false, size=8, transparent=false, knockCheck=true, mode='all', query=''}
-state.espPlayers=false; state.espEntities=false; state.espNames=true; state.espHealth=true
+state.espPlayers=false; state.espEntities=false
 state.camEnabled=false; state.camNPC=false; state.wallCheck=true; state.camTeam=false
 state.fov=140; state.showFov=true; state.hitPart='Head'
 state.airEnabled=true; state.airPart='HumanoidRootPart'; state.prediction=0.12; state.airPrediction=0.12
 state.autoPrediction=false; state.autoPredMath=250; state.autoBase=0.04; state.smoothing=0.22
+state.accent='Verde';state.uiOpacity=0.06;state.uiSize=1;state.blurSize=5;state.reduceMotion=false;state.notifications=true
 state.blur=true; state.hideKeyName='L'; state.camKeyName='Q'
 local closing=false
 local alive=true
@@ -26,8 +27,8 @@ local HttpService=game:GetService('HttpService')
 local settingsFile='evini-settings-'..tostring((game.GameId and game.GameId>0) and game.GameId or game.PlaceId or 0)..'.json'
 local defaults={}
 for k,v in pairs(state) do defaults[k]=v end
-local bounds={size={2,30},fov={30,500},prediction={0,0.5},airPrediction={0,0.5},autoPredMath={100,1000},autoBase={0,0.2},smoothing={0,1}}
-local options={mode={all=true,exclude=true,only=true},hitPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true},airPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true}}
+local bounds={uiOpacity={0,0.45},uiSize={0.65,1.3},blurSize={0,12},size={2,30},fov={30,500},prediction={0,0.5},airPrediction={0,0.5},autoPredMath={100,1000},autoBase={0,0.2},smoothing={0,1}}
+local options={accent={Verde=true,Esmeralda=true,Azul=true,Lilas=true},mode={all=true,exclude=true,only=true},hitPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true},airPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true}}
 local persistenceStatus='Salvamento indisponível neste executor'
 local persistenceReport=function() end
 local canSave=type(writefile)=='function' and type(readfile)=='function'
@@ -69,7 +70,10 @@ local function queueSave()
 end
 
 local connections, originals = {}, {}
-local green, dark = Color3.fromRGB(64,181,111), Color3.fromRGB(22,38,29)
+local accents={Verde=Color3.fromRGB(64,181,111),Esmeralda=Color3.fromRGB(43,191,153),Azul=Color3.fromRGB(93,160,235),Lilas=Color3.fromRGB(172,142,225)}
+local green=accents[state.accent]
+local accentBindings={}
+local function accent(obj,property) table.insert(accentBindings,{obj,property});obj[property]=green end
 local function create(class, props, parent)
     local obj = Instance.new(class)
     for k,v in pairs(props) do obj[k] = v end
@@ -84,10 +88,10 @@ local function connect(signal, fn)
 end
 local function round(obj, r) create('UICorner',{CornerRadius=UDim.new(0,r or 12)},obj) end
 local function text(parent, value, pos, size, fontSize)
-    return create('TextLabel',{Text=value,Position=pos,Size=size,BackgroundTransparency=1,TextColor3=Color3.fromRGB(226,234,228),Font=Enum.Font.Arcade,TextSize=fontSize or 14,TextXAlignment=Enum.TextXAlignment.Left,TextWrapped=true},parent)
+    return create('TextLabel',{Text=value,Position=pos,Size=size,BackgroundTransparency=1,TextColor3=Color3.fromRGB(226,234,228),Font=Enum.Font.BuilderSans,TextSize=fontSize or 14,TextXAlignment=Enum.TextXAlignment.Left,TextWrapped=true},parent)
 end
 local function button(parent,value,pos,size,radius)
-    local b = create('TextButton',{Text=value,Position=pos,Size=size,BackgroundColor3=Color3.fromRGB(19,20,20),TextColor3=Color3.fromRGB(170,185,176),BorderSizePixel=0,Font=Enum.Font.Arcade,TextSize=13},parent)
+    local b = create('TextButton',{Text=value,Position=pos,Size=size,BackgroundColor3=Color3.fromRGB(19,20,20),TextColor3=Color3.fromRGB(170,185,176),BorderSizePixel=0,Font=Enum.Font.BuilderSans,TextSize=13},parent)
     round(b,radius or 2)
     return b
 end
@@ -168,13 +172,14 @@ end
 -- ESP / camera: APIs nativas, sem alterar remotes de armas ou baixar codigo externo.
 local candidates,npcModels,espObjects={},{},{}
 local cameraTarget=nil
+local notifyTarget=function() end
 local latched=false
 local pingSeconds=nil
 local cameraStatus=function() end
 local overlays=create('ScreenGui',{Name='EVINI_Overlays',ResetOnSpawn=false,IgnoreGuiInset=true,DisplayOrder=79,ZIndexBehavior=Enum.ZIndexBehavior.Sibling},player:WaitForChild('PlayerGui'))
 local ring=create('Frame',{Name='FOV',AnchorPoint=Vector2.new(0.5,0.5),BackgroundTransparency=1,Size=UDim2.fromOffset(280,280),Visible=false},overlays)
 create('UICorner',{CornerRadius=UDim.new(1,0)},ring)
-create('UIStroke',{Color=green,Thickness=1,Transparency=0.22},ring)
+local ringStroke=create('UIStroke',{Color=green,Thickness=1,Transparency=0.22},ring);accent(ringStroke,'Color')
 local function addHumanoid(obj)
     if obj:IsA('Humanoid') and obj.Parent and obj.Parent:IsA('Model') then npcModels[obj.Parent]=true end
 end
@@ -278,13 +283,10 @@ end
 local function ensureESP(entry)
     local item=espObjects[entry.model]
     if item then return item end
-    local frame=create('Frame',{Name='ESPBox',BackgroundTransparency=1,BorderSizePixel=0,Visible=false},overlays)
-    create('UIStroke',{Color=entry.player and green or Color3.fromRGB(230,183,100),Thickness=1},frame)
-    local label=text(frame,'',UDim2.new(0.5,-110,0,-29),UDim2.fromOffset(220,26),11)
-    label.Font=Enum.Font.RobotoMono; label.TextXAlignment=Enum.TextXAlignment.Center
-    label.TextStrokeTransparency=0.35
-    local bar=create('Frame',{Position=UDim2.fromOffset(-5,0),Size=UDim2.new(0,2,1,0),BackgroundColor3=green,BorderSizePixel=0},frame)
-    item={frame=frame,label=label,bar=bar}; espObjects[entry.model]=item
+    local frame=create('Frame',{Name='ESPName',BackgroundTransparency=1,Size=UDim2.fromOffset(220,22),Visible=false},overlays)
+    local label=text(frame,'',UDim2.fromOffset(0,0),UDim2.fromScale(1,1),13)
+    label.Font=Enum.Font.BuilderSansMedium;label.TextXAlignment=Enum.TextXAlignment.Center;label.TextStrokeTransparency=0.35
+    item={frame=frame,label=label};espObjects[entry.model]=item
     return item
 end
 local function updateESP(camera)
@@ -293,21 +295,13 @@ local function updateESP(camera)
         local wanted=entry.player and state.espPlayers or (not entry.player and state.espEntities)
         local root,hum=targetInfo(entry)
         if wanted and root then
-            local item=ensureESP(entry); seen[entry.model]=true
+            local item=ensureESP(entry);seen[entry.model]=true
             local head=targetPart(entry.model,'Head') or root
-            local top,onScreen=camera:WorldToViewportPoint(head.Position+Vector3.new(0,1,0))
-            local bottom=camera:WorldToViewportPoint(root.Position-Vector3.new(0,3,0))
-            local height=math.abs(bottom.Y-top.Y)
-            item.frame.Visible=onScreen and top.Z>0 and bottom.Z>0 and height>1
-            if item.frame.Visible then
-                local width=math.max(12,height*0.52)
-                item.frame.Position=UDim2.fromOffset(top.X-width/2,math.min(top.Y,bottom.Y))
-                item.frame.Size=UDim2.fromOffset(width,height)
-                item.label.Visible=state.espNames
-                item.label.Text=entry.name..' · '..math.floor((root.Position-camera.CFrame.Position).Magnitude)..' st'
-                item.bar.Visible=state.espHealth
-                item.bar.Size=UDim2.new(0,2,math.clamp(hum.Health/math.max(1,hum.MaxHealth),0,1),0)
-            end
+            local point,onScreen=camera:WorldToViewportPoint(head.Position+Vector3.new(0,1,0))
+            item.frame.Visible=onScreen and point.Z>0
+            item.frame.Position=UDim2.fromOffset(point.X-110,point.Y-24)
+            item.label.Text=entry.player and entry.player.DisplayName or entry.model.Name
+            item.label.TextColor3=entry.player and green or Color3.fromRGB(230,183,100)
         end
     end
     local stale={}
@@ -322,7 +316,7 @@ local function cameraActive()
     if closing or not state.camEnabled or uiOpen or uiBusy or capturing or UIS:GetFocusedTextBox() then return false end
     return latched and cameraTarget~=nil
 end
-local function resetCamera() latched=false; cameraTarget=nil end
+local function resetCamera() local had=cameraTarget;latched=false;cameraTarget=nil;if had then notifyTarget('Alvo liberado') end end
 local espElapsed,statusElapsed=0,0
 local function render(dt)
     local camera=Workspace.CurrentCamera
@@ -344,8 +338,7 @@ local function render(dt)
             if not root or not part or not filterCamera(entry,resolveTarget()) or not onScreen or point.Z<=0
                 or not visibleToCamera(entry,part,camera) then entry=nil end
         end
-        cameraTarget=entry
-        if not entry then resetCamera() end
+        if not entry then resetCamera() else cameraTarget=entry end
         if cameraTarget then
             local _,hum=targetInfo(cameraTarget)
             local part,air=aimPart(cameraTarget,hum)
@@ -366,12 +359,12 @@ local rootUI=create('Frame',{Name='Hub',AnchorPoint=Vector2.new(0.5,0.5),Positio
 local uiScale=create('UIScale',{Scale=1},rootUI)
 local function fitUI()
     local camera=Workspace.CurrentCamera
-    if camera then uiScale.Scale=math.min(1,math.max(0.35,math.min((camera.ViewportSize.X-28)/620,(camera.ViewportSize.Y-60)/546))) end
+    if camera then uiScale.Scale=math.min(state.uiSize,math.max(0.35,math.min((camera.ViewportSize.X-28)/620,(camera.ViewportSize.Y-60)/546))) end
 end
 local pieces={}
 local function piece(name,x,y,w,h,dx,dy)
     local obj=create('CanvasGroup',{Name=name,Position=UDim2.fromOffset(x,y),Size=UDim2.fromOffset(w,h),BackgroundColor3=palette.bg,BorderSizePixel=0,GroupTransparency=0},rootUI)
-    round(obj,4); create('UIStroke',{Color=palette.edge,Thickness=1},obj)
+    round(obj,7); obj.BackgroundTransparency=state.uiOpacity;create('UIStroke',{Color=palette.edge,Thickness=1},obj)
     table.insert(pieces,{obj=obj,home=UDim2.fromOffset(x,y),away=UDim2.fromOffset(x+dx,y+dy)})
     return obj
 end
@@ -379,8 +372,8 @@ local header=piece('Header',0,0,620,58,0,-24)
 local sidebar=piece('Navigation',0,66,138,430,-30,0)
 local body=piece('Content',146,66,474,430,30,0)
 local footer=piece('Footer',0,504,620,42,0,22)
-local title=text(header,'EVINI',UDim2.fromOffset(18,10),UDim2.fromOffset(175,23),21); title.Font=Enum.Font.Arcade; title.TextColor3=green
-local sub=text(header,'CONTROL ROOM  /  2.1',UDim2.fromOffset(19,34),UDim2.fromOffset(300,14),10); sub.Font=Enum.Font.RobotoMono; sub.TextColor3=palette.muted
+local title=text(header,'EVINI',UDim2.fromOffset(18,10),UDim2.fromOffset(175,23),21); title.Font=Enum.Font.BuilderSansBold;accent(title,'TextColor3')
+local sub=text(header,'#death · Seu espaço, seu ajuste',UDim2.fromOffset(19,34),UDim2.fromOffset(300,14),10); sub.Font=Enum.Font.BuilderSans; sub.TextColor3=palette.muted
 local hide=button(header,'−',UDim2.new(1,-74,0,15),UDim2.fromOffset(26,26)); hide.Name='Hide'
 local close=button(header,'×',UDim2.new(1,-40,0,15),UDim2.fromOffset(26,26)); close.Name='Close'
 local blur=create('BlurEffect',{Name='EVINI_Blur',Size=0},Lighting)
@@ -388,7 +381,7 @@ local animationVersion=0
 local activeTweens={}
 local destroyed=false
 local function tween(obj,duration,props)
-    local t=TweenService:Create(obj,TweenInfo.new(duration,Enum.EasingStyle.Quart,Enum.EasingDirection.Out),props)
+    local t=TweenService:Create(obj,TweenInfo.new(state.reduceMotion and 0 or duration,Enum.EasingStyle.Quart,Enum.EasingDirection.Out),props)
     t:Play(); table.insert(activeTweens,t); return t
 end
 local function showUI(open,after)
@@ -398,15 +391,15 @@ local function showUI(open,after)
     for _,t in ipairs(activeTweens) do t:Cancel() end
     activeTweens={}; uiBusy=true; uiOpen=open; resetCamera()
     rootUI.Visible=true; fitUI()
-    tween(blur,0.28,{Size=open and state.blur and 5 or 0})
+    tween(blur,0.28,{Size=open and state.blur and state.blurSize or 0})
     for i,item in ipairs(pieces) do
-        if open and item.obj.GroupTransparency>=0.99 then item.obj.Position=item.away end
-        task.delay((open and i-1 or #pieces-i)*0.035,function()
+        if open and item.obj.GroupTransparency>=0.99 then item.obj.Position=state.reduceMotion and item.home or item.away end
+        task.delay(state.reduceMotion and 0 or (open and i-1 or #pieces-i)*0.035,function()
             if not alive or version~=animationVersion then return end
-            tween(item.obj,0.30,{Position=open and item.home or item.away,GroupTransparency=open and 0 or 1})
+            tween(item.obj,0.30,{Position=(open or state.reduceMotion) and item.home or item.away,GroupTransparency=open and 0 or 1})
         end)
     end
-    task.delay(0.43,function()
+    task.delay(state.reduceMotion and 0 or 0.43,function()
         if not alive or version~=animationVersion then return end
         uiBusy=false; rootUI.Visible=open
         if after then after() end
@@ -414,31 +407,40 @@ local function showUI(open,after)
 end
 for _,item in ipairs(pieces) do item.obj.GroupTransparency=1; item.obj.Position=item.away end
 local pages,tabs={},{}
-local currentPage='HITBOX'
+local currentPage='Mira'
 local function page(name,index)
     local frame=create('ScrollingFrame',{Name=name,Position=UDim2.fromOffset(14,12),Size=UDim2.new(1,-28,1,-24),BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=3,ScrollBarImageColor3=green,CanvasSize=UDim2.fromOffset(0,0),Visible=index==1},body)
-    pages[name]={frame=frame,y=0}
-    local b=button(sidebar,name,UDim2.fromOffset(10,14+(index-1)*42),UDim2.new(1,-20,0,32)); b.Name='Tab_'..name; b.Font=Enum.Font.RobotoMono
+    pages[name]={frame=frame,y=0};accent(frame,'ScrollBarImageColor3')
+    local b=button(sidebar,name,UDim2.fromOffset(10,14+(index-1)*42),UDim2.new(1,-20,0,32)); b.Name='Tab_'..name; b.Font=Enum.Font.BuilderSans
     tabs[name]=b
     connect(b.Activated,function()
         currentPage=name
-        for key,p in pairs(pages) do p.frame.Visible=key==name; tabs[key].TextColor3=key==name and green or palette.muted end
+        for key,p in pairs(pages) do
+            if p.tabTween then p.tabTween:Cancel() end
+            p.frame.Visible=key==name;tabs[key].TextColor3=key==name and green or palette.muted
+            if key==name then
+                p.frame.Position=UDim2.fromOffset(14,state.reduceMotion and 12 or 17)
+                p.tabTween=TweenService:Create(p.frame,TweenInfo.new(state.reduceMotion and 0 or 0.14,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Position=UDim2.fromOffset(14,12)})
+                p.tabTween:Play()
+            end
+        end
     end)
     b.TextColor3=index==1 and green or palette.muted
     return pages[name]
 end
-local hitPage=page('HITBOX',1)
-local espPage=page('ESP',2)
-local camPage=page('CAM LOCK',3)
-local predPage=camPage
-local settingsPage=page('INTERFACE',4)
-local branding=text(sidebar,'# DEATH\n8440749',UDim2.new(0,13,1,-48),UDim2.new(1,-26,0,36),10); branding.Font=Enum.Font.RobotoMono; branding.TextColor3=palette.muted
+local camPage=page('Mira',1)
+local espPage=page('Visual',2)
+local settingsPage=page('Ajustes',3)
+local function subPage() return {frame=create('Frame',{BackgroundTransparency=1,Visible=false,Size=UDim2.new(1,0,0,0)},camPage.frame),y=0} end
+local hitPage=subPage()
+local predPage=subPage()
+local branding=text(sidebar,'# DEATH\n8440749',UDim2.new(0,13,1,-48),UDim2.new(1,-26,0,36),10); branding.Font=Enum.Font.BuilderSans; branding.TextColor3=palette.muted
 local function slot(p,h)
-    local y=p.y; p.y=y+h; p.frame.CanvasSize=UDim2.fromOffset(0,p.y+8); return y
+    local y=p.y; p.y=y+h; if p.frame:IsA('ScrollingFrame') then p.frame.CanvasSize=UDim2.fromOffset(0,p.y+8) else p.frame.Size=UDim2.new(1,0,0,p.y+8) end; return y
 end
 local function label(p,value,description)
     local y=slot(p,description and 57 or 32)
-    local t=text(p.frame,value,UDim2.fromOffset(0,y),UDim2.new(1,0,0,20),15); t.Font=Enum.Font.RobotoMono; t.TextColor3=green
+    local t=text(p.frame,value,UDim2.fromOffset(0,y),UDim2.new(1,0,0,20),15); t.Font=Enum.Font.BuilderSans; accent(t,'TextColor3')
     if description then local d=text(p.frame,description,UDim2.fromOffset(0,y+23),UDim2.new(1,-4,0,30),11); d.Font=Enum.Font.BuilderSans; d.TextColor3=palette.muted end
 end
 local function rowText(p,value,y)
@@ -459,7 +461,7 @@ local function switch(p,value,key,onChange)
 end
 local function field(p,value,key,min,max,step,onChange)
     local y=slot(p,46); rowText(p,value,y)
-    local box=create('TextBox',{Name=key=='size' and 'SizeInput' or key,Position=UDim2.new(1,-106,0,y),Size=UDim2.fromOffset(106,32),BackgroundColor3=palette.panel,BorderSizePixel=0,Text=tostring(state[key]),TextColor3=palette.white,ClearTextOnFocus=false,Font=Enum.Font.RobotoMono,TextSize=13},p.frame)
+    local box=create('TextBox',{Name=key=='size' and 'SizeInput' or key,Position=UDim2.new(1,-106,0,y),Size=UDim2.fromOffset(106,32),BackgroundColor3=palette.panel,BorderSizePixel=0,Text=tostring(state[key]),TextColor3=palette.white,ClearTextOnFocus=false,Font=Enum.Font.BuilderSans,TextSize=13},p.frame)
     round(box,3); create('UIStroke',{Color=palette.edge,Thickness=1,ApplyStrokeMode=Enum.ApplyStrokeMode.Border},box)
     local function set(v)
         if v and v==v then state[key]=math.floor(math.clamp(v,min,max)/step+0.5)*step end
@@ -477,7 +479,9 @@ local function slider(p,value,key,min,max,step)
     local hit=create('TextButton',{Name=key..'_Slider',Text='',BackgroundTransparency=1,Position=UDim2.fromOffset(0,y),Size=UDim2.new(1,0,0,22)},p.frame)
     local track=create('Frame',{Position=UDim2.fromOffset(0,8),Size=UDim2.new(1,0,0,3),BackgroundColor3=palette.edge,BorderSizePixel=0},hit)
     local fill=create('Frame',{Size=UDim2.fromScale((state[key]-min)/(max-min),1),BackgroundColor3=green,BorderSizePixel=0},track)
+    accent(fill,'BackgroundColor3')
     local knob=create('Frame',{AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.fromScale((state[key]-min)/(max-min),0.5),Size=UDim2.fromOffset(7,11),BackgroundColor3=green,BorderSizePixel=0},track)
+    accent(knob,'BackgroundColor3')
     local function refresh() local r=(state[key]-min)/(max-min); fill.Size=UDim2.fromScale(r,1); knob.Position=UDim2.fromScale(r,0.5) end
     local refreshBox=controlRefresh[key]
     controlRefresh[key]=function() refreshBox();refresh() end
@@ -492,7 +496,7 @@ local function slider(p,value,key,min,max,step)
 end
 local function choice(p,value,key,options,onChange)
     local y=slot(p,46); local caption=rowText(p,value,y); caption.Size=UDim2.new(1,-166,0,24)
-    local b=button(p.frame,'',UDim2.new(1,-154,0,y),UDim2.fromOffset(154,32)); b.Name=key; b.Font=Enum.Font.RobotoMono; b.TextSize=11
+    local b=button(p.frame,'',UDim2.new(1,-154,0,y),UDim2.fromOffset(154,32)); b.Name=key; b.Font=Enum.Font.BuilderSans; b.TextSize=11
     local function refresh()
         for _,o in ipairs(options) do if o[1]==state[key] then b.Text=o[2]..'  >' end end
     end
@@ -515,16 +519,15 @@ reportTarget=function(target,message)
     result.Text=state.mode=='all' and 'Todos os outros jogadores.' or (target and ((state.mode=='exclude' and 'Normal para @' or 'Somente @')..target.Name) or message)
 end
 connect(nick.FocusLost,function() state.query=nick.Text:match('^%s*(.-)%s*$'):gsub('^@',''); nick.Text=state.query; apply(); resetCamera();queueSave() end)
-label(espPage,'ESP','Jogadores e entidades com Humanoid. Caixas, nome, distância e barra de vida.')
+label(espPage,'Nomes no jogo','Identifique jogadores e NPCs sem cobrir a cena.')
 switch(espPage,'Jogadores','espPlayers')
 switch(espPage,'NPCs / entidades','espEntities')
-switch(espPage,'Nomes e distância','espNames')
-switch(espPage,'Barra de vida','espHealth')
-label(espPage,'LEITURA','Verde: jogador. Âmbar: entidade. Mortos e K.O. seguem o Knock Check. Objetos sem Humanoid não são identificados automaticamente.')
+
+label(espPage,'Só o essencial','Apenas o nome de exibição, sem caixa, distância ou vida. Mortos e K.O. ficam ocultos.')
 label(camPage,'CAM LOCK + PREDICT','Clique na tecla para capturar no FOV. Clique de novo para soltar. Esc também solta.')
 local camKeyY=slot(camPage,46)
 switch(camPage,'Ativar cam lock','camEnabled',resetCamera)
-local preset=button(camPage.frame,'PONTO DE PARTIDA · 80–120 ms',UDim2.fromOffset(0,slot(camPage,40)),UDim2.new(1,0,0,30));preset.Name='PingPreset';preset.Font=Enum.Font.RobotoMono;preset.TextSize=11
+local preset=button(camPage.frame,'Começar com ping de 80–120 ms',UDim2.fromOffset(0,slot(camPage,40)),UDim2.new(1,0,0,30));preset.Name='PingPreset';preset.Font=Enum.Font.BuilderSans;preset.TextSize=11
 connect(preset.Activated,function()
     state.autoPrediction=true;state.autoPredMath=250;state.autoBase=0.04;state.smoothing=0.22
     for _,key in ipairs({'autoPrediction','autoPredMath','autoBase','smoothing'}) do if controlRefresh[key] then controlRefresh[key]() end end
@@ -547,8 +550,8 @@ switch(predPage,'Usar Air Part','airEnabled')
 choice(predPage,'Parte no ar','airPart',{{'HumanoidRootPart','Centro'},{'Head','Cabeça'},{'UpperTorso','Tronco'},{'LowerTorso','Tronco baixo'}})
 slider(predPage,'Previsão no ar · segundos','airPrediction',0,0.5,0.001)
 label(predPage,'NO AR','Air Part usa o estado de salto/queda e antecipa velocidade + gravidade. No automático, o ping define o tempo nos dois casos.')
-local targetReadout=text(camPage.frame,'Sem alvo',UDim2.fromOffset(0,slot(camPage,32)),UDim2.new(1,0,0,28),11); targetReadout.Font=Enum.Font.RobotoMono; targetReadout.TextColor3=green
-label(settingsPage,'INTERFACE','Clique na tecla para trocar. Esc cancela. Abrir o hub pausa o cam lock.')
+local targetReadout=text(camPage.frame,'Sem alvo',UDim2.fromOffset(0,slot(camPage,32)),UDim2.new(1,0,0,28),11); targetReadout.Font=Enum.Font.BuilderSans; accent(targetReadout,'TextColor3')
+label(settingsPage,'Do seu jeito','Ajuste a aparência e os atalhos. Suas escolhas ficam salvas neste dispositivo.')
 local hideKey=Enum.KeyCode[state.hideKeyName]
 local captureVersion=0
 local keyButtons={}
@@ -570,14 +573,59 @@ end
 keyField('Ocultar / abrir hub','hide'); keyField('Tecla do cam lock','cam'); refreshKeys()
 local saveText=text(settingsPage.frame,persistenceStatus,UDim2.fromOffset(0,slot(settingsPage,38)),UDim2.new(1,0,0,32),11); saveText.Font=Enum.Font.BuilderSans;saveText.TextColor3=palette.muted
 persistenceReport=function(message) if alive then saveText.Text=message end end
-switch(settingsPage,'Blur ao abrir','blur',function() tween(blur,0.2,{Size=uiOpen and state.blur and 5 or 0}) end)
+switch(settingsPage,'Blur ao abrir','blur',function() tween(blur,0.2,{Size=uiOpen and state.blur and state.blurSize or 0}) end)
 label(settingsPage,'COMPATIBILIDADE','Base R6 / R15 com Humanoid. Câmeras e personagens personalizados podem exigir adaptação. Fechar remove efeitos e restaura hitboxes.')
-local foot=text(footer,'L · HUB     Q · CAM LOCK',UDim2.fromOffset(14,12),UDim2.fromOffset(250,18),10); foot.Font=Enum.Font.RobotoMono; foot.TextColor3=palette.muted
-local stats=text(footer,'PING —',UDim2.new(1,-332,0,12),UDim2.fromOffset(318,18),10); stats.Font=Enum.Font.RobotoMono; stats.TextXAlignment=Enum.TextXAlignment.Right; stats.TextColor3=green
+local folds={}
+local baseHeight=camPage.y
+local function arrangeFolds()
+    local y=baseHeight
+    for _,f in ipairs(folds) do
+        f.button.Position=UDim2.fromOffset(0,y)
+        f.button.Text=(f.open and '−  ' or '+  ')..f.name
+        y=y+40;f.page.frame.Position=UDim2.fromOffset(0,y);f.page.frame.Visible=f.open
+        if f.open then y=y+f.page.y+12 end
+    end
+    camPage.frame.CanvasSize=UDim2.fromOffset(0,y+10)
+end
+for _,definition in ipairs({{'Calibração avançada',predPage},{'Hitbox e filtros',hitPage}}) do
+    local f={name=definition[1],page=definition[2],open=false}
+    f.button=button(camPage.frame,'',UDim2.fromOffset(0,0),UDim2.new(1,0,0,32));f.button.Name=definition[1]
+    table.insert(folds,f)
+    connect(f.button.Activated,function() f.open=not f.open;arrangeFolds() end)
+end
+arrangeFolds()
+local function refreshAppearance()
+    green=accents[state.accent]
+    for _,binding in ipairs(accentBindings) do if binding[1].Parent then binding[1][binding[2]]=green end end
+    for _,item in ipairs(pieces) do item.obj.BackgroundTransparency=state.uiOpacity end
+    for _,refresh in pairs(controlRefresh) do refresh() end
+    for name,b in pairs(tabs) do b.TextColor3=name==currentPage and green or palette.muted end
+    fitUI();tween(blur,0.2,{Size=uiOpen and state.blur and state.blurSize or 0})
+end
+label(settingsPage,'Aparência')
+choice(settingsPage,'Cor de destaque','accent',{{'Verde','Verde'},{'Esmeralda','Esmeralda'},{'Azul','Azul'},{'Lilas','Lilás'}},refreshAppearance)
+field(settingsPage,'Transparência · 0–0,45','uiOpacity',0,0.45,0.01,refreshAppearance)
+field(settingsPage,'Tamanho da interface','uiSize',0.65,1.3,0.05,refreshAppearance)
+field(settingsPage,'Intensidade do blur','blurSize',0,12,1,refreshAppearance)
+switch(settingsPage,'Reduzir animações','reduceMotion')
+switch(settingsPage,'Notificações de alvo','notifications')
+local foot=text(footer,'L · HUB     Q · CAM LOCK',UDim2.fromOffset(14,12),UDim2.fromOffset(250,18),10); foot.Font=Enum.Font.BuilderSans; foot.TextColor3=palette.muted
+local stats=text(footer,'PING —',UDim2.new(1,-332,0,12),UDim2.fromOffset(318,18),10); stats.Font=Enum.Font.BuilderSans; stats.TextXAlignment=Enum.TextXAlignment.Right; stats.TextColor3=green
 cameraStatus=function(name,ping,pred)
     targetReadout.Text='ALVO: '..name
     stats.Text=(ping and math.floor(ping*1000)..' ms' or 'ping indisponível')..' / '..string.format('%.3f s',pred)
     foot.Text=hideKey.Name..' · HUB   '..camBind.Name..' · '..(cameraTarget and 'LOCK' or 'CAM')
+end
+local toast=create('Frame',{Name='TargetNotice',AnchorPoint=Vector2.new(0.5,1),Position=UDim2.new(0.5,0,1,-38),Size=UDim2.fromOffset(300,58),BackgroundColor3=palette.bg,BorderSizePixel=0,Visible=false},overlays)
+round(toast,7)
+local toastTitle=text(toast,'EVINI · #death',UDim2.fromOffset(14,8),UDim2.fromOffset(272,18),12);accent(toastTitle,'TextColor3')
+local toastBody=text(toast,'',UDim2.fromOffset(14,29),UDim2.fromOffset(272,19),12)
+local toastVersion=0
+notifyTarget=function(message)
+    if not alive or closing or not state.notifications then return end
+    toastVersion=toastVersion+1;local version=toastVersion
+    toastBody.Text=message;toast.Visible=true
+    task.delay(2,function() if alive and version==toastVersion then toast.Visible=false end end)
 end
 connect(UIS.InputBegan,function(event,processed)
     if not capturing and (event.KeyCode==Enum.KeyCode.Escape or (latched and event.KeyCode==camBind)) then resetCamera();return end
@@ -599,6 +647,7 @@ connect(UIS.InputBegan,function(event,processed)
         if state.camEnabled and camera and not closing then
             cameraTarget=acquire(camera,UIS:GetMouseLocation())
             latched=cameraTarget~=nil
+            if cameraTarget then notifyTarget('Locked on: '..(cameraTarget.player and cameraTarget.player.DisplayName or cameraTarget.name)) end
         end
     end
 end)
@@ -666,7 +715,7 @@ task.delay(3,endIntro)
 task.spawn(function()
     pcall(function() ContentProvider:PreloadAsync({splash}) end)
     if not alive or introDone then return end
-    if splash.IsLoaded then
+    if splash.IsLoaded and not state.reduceMotion then
         TweenService:Create(splash,TweenInfo.new(0.18),{ImageTransparency=0}):Play()
         task.wait(0.65)
         if not alive or introDone then return end

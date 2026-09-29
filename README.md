@@ -1,6 +1,6 @@
-# EVINI 2.1
+# EVINI 2.2
 
-Hub independente e legivel para clientes Roblox. Abas HITBOX, ESP, CAM LOCK (com previsao) e INTERFACE; tema grafite/verde, entrada e saida em quatro pecas, blur leve opcional e emblema da crew 8440749.
+Hub independente e legivel para clientes Roblox. Abas Mira, Visual e Ajustes; calibracao e hitbox em secoes expansiveis; tema grafite/verde, entrada e saida em quatro pecas, blur leve opcional e emblema da crew 8440749.
 
 ```lua
 loadstring(game:HttpGet("https://raw.githubusercontent.com/EDUVlNI/evini-loader/main/main.lua", true))()
@@ -10,12 +10,12 @@ Nao carrega Nitrogen, Azure, Luarmor ou bibliotecas de terceiros. O fonte public
 
 ## Uso rapido
 
-1. Em **CAM LOCK**, ative o cam lock e ajuste o raio FOV.
+1. Em **Mira**, ative o cam lock e ajuste o raio FOV.
 2. Escolha Cabeca, Tronco, Tronco baixo ou Centro.
-3. Pressione **Q uma vez** para capturar a pessoa mais proxima do mouse dentro do FOV. Pressione **Q novamente**, ou **Esc**, para soltar. A tecla pode ser trocada dentro de CAM LOCK. Nao ha captura automatica, captura ao passar o mouse nem troca automatica de alvo.
-4. **L** oculta/abre o hub. A camera fica livre enquanto o hub esta aberto. As duas teclas podem ser trocadas em INTERFACE; a mesma tecla nao pode exercer as duas funcoes.
-5. Em **ESP**, ative jogadores e/ou entidades. Verde identifica jogadores e ambar identifica NPCs.
-6. Na mesma aba **CAM LOCK**, use **Ponto de partida 80–120 ms**, ou ajuste a previsao manual/automatica. Os controles tem slider e campo numerico.
+3. Pressione **Q uma vez** para capturar a pessoa mais proxima do mouse dentro do FOV. Pressione **Q novamente**, ou **Esc**, para soltar. A tecla pode ser trocada dentro de Mira. Nao ha captura automatica, captura ao passar o mouse nem troca automatica de alvo.
+4. **L** oculta/abre o hub. A camera fica livre enquanto o hub esta aberto. As duas teclas podem ser trocadas em Ajustes; a mesma tecla nao pode exercer as duas funcoes.
+5. Em **Visual**, ative jogadores e/ou entidades. Verde identifica jogadores e ambar identifica NPCs.
+6. Na aba **Mira**, use **Ponto de partida 80–120 ms**, ou ajuste a previsao manual/automatica. Os controles tem slider e campo numerico.
 
 Na primeira execucao, hitbox, ESP e cam lock iniciam desligados; nas seguintes, as preferencias salvas sao restauradas sem restaurar o lock em uma pessoa. Knock Check e verificacao de paredes iniciam ligados. Mantenha os recursos que nao estiver usando desligados.
 
@@ -29,11 +29,13 @@ Na primeira execucao, hitbox, ESP e cam lock iniciam desligados; nas seguintes, 
 - Knock Check exclui `BodyEffects["K.O"]` mesmo com vida positiva. Vida zero, estado Dead ou `BodyEffects.Dead` sempre excluem o alvo.
 - Desativar ou fechar restaura tamanho, transparencia, cor, material e colisao salvos. Ocultar o hub mantem os recursos ativos.
 
-## ESP
+## Visual e personalizacao
 
-Caixas 2D aproximadas, nome, distancia em studs e barra de vida. Descoberta de jogadores e modelos com **Humanoid** presentes no cliente, incluindo adicoes e remocoes durante a sessao. StreamingEnabled limita o que o cliente pode ver. Objetos sem Humanoid nao sao identificados automaticamente como entidades.
+ESP apenas com nome de exibicao, sem caixas, distancia ou barra de vida. Jogadores e NPCs podem ser ativados separadamente; entidades precisam de Humanoid no cliente. StreamingEnabled limita o que esta disponivel. Mortos e Knock Check continuam respeitados.
 
-As caixas usam cabeca/centro e uma altura estimada para nao crescer junto com a hitbox expandida. Personagens de proporcoes incomuns podem precisar de adaptacao. O ESP e independente do filtro por nick; mortos e Knock Check sao respeitados.
+Ajustes de cor (Verde, Esmeralda, Azul, Lilas), transparencia, escala da interface, blur e reducao de movimento. Fontes Builder Sans, tres abas e transicoes curtas. Preferencias de aparencia usam o mesmo salvamento local validado.
+
+Notificacoes opcionais: `EVINI · #death`, `Locked on: Nome` e `Alvo liberado`. Duram dois segundos e substituem a mensagem anterior para nao acumular na tela.
 
 ## Cam lock e FOV
 
@@ -54,7 +56,7 @@ Isso nao melhora Wi-Fi, nao reduz ping, nao conhece velocidade de bala nem a com
 
 Preferencias e teclas sao gravadas automaticamente, apos 0,35 s sem novas alteracoes, e ao fechar/reexecutar. Arquivo `evini-settings-<GameId>.json` no armazenamento local do executor, separado por experiencia Roblox (PlaceId como alternativa). Nao salva alvo capturado nem ativa o lock ao reabrir.
 
-Requer `readfile` e `writefile`. A aba INTERFACE mostra sucesso, indisponibilidade ou falha. Sem suporte, o hub funciona sem persistencia. O JSON e validado; arquivos invalidos retornam aos padroes. Nao sincroniza entre dispositivos ou executores, e uma interrupcao abrupta antes da gravacao pode perder a ultima alteracao.
+Requer `readfile` e `writefile`. A aba Ajustes mostra sucesso, indisponibilidade ou falha. Sem suporte, o hub funciona sem persistencia. O JSON e validado; arquivos invalidos retornam aos padroes. Nao sincroniza entre dispositivos ou executores, e uma interrupcao abrupta antes da gravacao pode perder a ultima alteracao.
 
 ## Ciclo de vida e compatibilidade
 
@@ -72,3 +74,5 @@ Compilacao Lua e execucao com APIs simuladas, incluindo inicializacao completa, 
 - [Camera / WorldToViewportPoint](https://create.roblox.com/docs/reference/engine/classes/Camera) — coordenadas do FOV e projecao.
 - [Player / GetNetworkPing](https://create.roblox.com/docs/reference/engine/classes/Player) — leitura do RTT.
 - [RunService / BindToRenderStep](https://create.roblox.com/docs/reference/engine/classes/RunService) — ordem de atualizacao da camera.
+
+Atualizacao 2.2: testes adicionais de tres abas, ESP somente nomes, expansao de secoes, cor/transparencia, movimento reduzido e persistencia visual. Aparencia real ainda depende de verificacao no cliente Roblox.
