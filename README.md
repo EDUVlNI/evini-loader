@@ -1,4 +1,4 @@
-# EVINI 2.3
+# EVINI 2.4
 
 Hub independente e legivel para Roblox, direcionado ao Da Hood original. A versao aparece no cabecalho. Veja [a revisao completa dos pedidos e limites](REVISAO.md).
 
@@ -6,7 +6,7 @@ Hub independente e legivel para Roblox, direcionado ao Da Hood original. A versa
 loadstring(game:HttpGet("https://raw.githubusercontent.com/EDUVlNI/evini-loader/main/main.lua", true))()
 ```
 
-Links antigos contendo um hash de commit continuam executando a versao antiga. Use a linha atualizada entregue na conversa para garantir a 2.3.
+Links antigos contendo um hash de commit continuam executando a versao antiga. Use a linha atualizada entregue na conversa para garantir a 2.4.
 
 ## Controles
 
@@ -16,7 +16,7 @@ Links antigos contendo um hash de commit continuam executando a versao antiga. U
 - **Esc:** soltar os locks; tambem desliga silent automatico por FOV.
 - **X da janela:** encerrar, restaurar hitboxes e remover efeitos.
 
-As tres teclas podem ser trocadas, sem conflitos. Captura de alvo precisa ocorrer com o hub oculto. Abrir o hub ou perder foco libera os locks fixos. Silent e camera compartilham parte do corpo, Air Part, previsao, parede, equipe e filtro por nick, mas possuem raios FOV e desenhos independentes.
+As tres teclas podem ser trocadas, sem conflitos. Cam lock captura com o hub oculto. Silent pode capturar com o hub aberto e mantem seu alvo quando a interface abre/fecha. Perder foco libera os locks fixos. Silent e camera compartilham parte do corpo, Air Part, previsao, parede, equipe e filtro por nick, mas possuem raios FOV e desenhos independentes.
 
 ## Mira
 
@@ -38,7 +38,7 @@ FOV, marcador e linha de cam lock e silent possuem interruptores independentes. 
 
 ## Ajustes e persistencia
 
-Cor de destaque, transparencia, tamanho, blur, movimento reduzido e notificacoes. Preferencias salvas em `evini-settings-<GameId>.json` no executor apos 0,35 s sem novas alteracoes e ao fechar/reexecutar. Exige `readfile`/`writefile`; indisponibilidade/falha aparece no painel. JSON validado; arquivo corrompido usa padroes. Nao salva alvo capturado nem sincroniza dispositivos.
+Tema preto e branco (contraste branco ou cinza), transparencia, tamanho, blur, movimento reduzido e notificacoes. Preferencias salvas em `evini-settings-<GameId>.json` no executor apos 0,35 s sem novas alteracoes e ao fechar/reexecutar. Exige `readfile`/`writefile`; indisponibilidade/falha aparece no painel. JSON validado; arquivo corrompido usa padroes. Nao salva alvo capturado nem sincroniza dispositivos.
 
 ## Verificacao
 
@@ -47,3 +47,7 @@ Testes simulados de inicializacao, hitbox, filtros, camera por tecla, pred/KO, n
 Ainda precisa de verificacao no Da Hood com o executor do usuario. Contador de redirecionamento prova apenas alteracao local de chamada, nao acerto aceito pelo servidor. Nenhum fonte ofuscado do Nitrogen/Azure e carregado.
 
 Validacao adicional: compilacao concluida com Luau 0.740; diagnosticos de executor sem hooks e jogo sem MainEvent tambem testados.
+
+## Correcao 2.4
+
+Corrigido o bloqueio do silent por UI aberta; o ponto e recalculado na chamada de mira, sem depender do frame anterior. O diagnostico distingue ausencia de chamadas, formato desconhecido, ausencia de alvo e erro interno. Alteracoes locais nao comprovam acertos no servidor. Ainda e necessario informar executor e status para diagnosticar uma incompatibilidade da sessao real.

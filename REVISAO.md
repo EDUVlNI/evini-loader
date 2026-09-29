@@ -1,10 +1,10 @@
-# Revisao EVINI 2.3
+# Revisao EVINI 2.4
 
 Esta revisao corrige omissoes: silent aim, silent lock e Aim Viewer nao existiam na 2.2. Agora existem implementacoes, com dependencias expostas na interface. Nenhum teste simulado confirma acertos no servidor Roblox.
 
 | Pedido | Implementacao | Limite / verificacao |
 |---|---|---|
-| Hub simples e personalizavel | Mira, Visual e Ajustes; Builder Sans, cor, transparencia, escala, blur e movimento reduzido | Aparencia real nao validada no Roblox |
+| Hub simples e personalizavel | Mira, Visual e Ajustes; Builder Sans, tema preto/branco, transparencia, escala, blur e movimento reduzido | Aparencia real nao validada no Roblox |
 | Montar/desmontar e transicoes | Animacao cancelavel em quatro partes e transicao entre abas | Teste de inversao rapida de animacao passou |
 | ESP somente nomes | Nome de exibicao de jogadores e nome de NPCs, sem caixa, distancia ou vida | Entidades precisam de Humanoid e estar disponiveis no cliente |
 | Knock Check | Health, estado Dead, BodyEffects.Dead e K.O | Testes de KO, recuperacao e restauracao passaram |
@@ -37,3 +37,7 @@ Somente leitura; nenhum script externo foi executado ou incluido:
 - [Roblox Camera](https://create.roblox.com/docs/reference/engine/classes/Camera) e [Player](https://create.roblox.com/docs/reference/engine/classes/Player).
 
 Validacao adicional: compilacao concluida com Luau 0.740; diagnosticos de executor sem hooks e jogo sem MainEvent tambem testados.
+
+### 2.4 — correcoes verificadas
+
+Silent nao e mais desativado por abrir o hub; captura por tecla funciona com UI aberta. Atualizacao do ponto ocorre na chamada interceptada. Estados de diagnostico agora mostram formato nao suportado e erro de adaptador. Chamadas originais sao preservadas quando ocorre erro. Os testes simulam esses casos, mas nao confirmam a causa da falha no executor do usuario.
