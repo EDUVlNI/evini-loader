@@ -1,4 +1,4 @@
--- EVINI 3.7: fonte independente. Nao carrega o Nitrogen.
+-- EVINI 3.8: fonte independente. Nao carrega o Nitrogen.
 -- Alteracoes de hitbox sao locais; o servidor pode ignora-las.
 local Players = game:GetService('Players')
 local UIS = game:GetService('UserInputService')
@@ -17,7 +17,7 @@ state.camEnabled=false; state.camNPC=false; state.wallCheck=true; state.camTeam=
 state.fovTransparency=0.22;state.cycleParts=false;state.cycleInterval=0.8;state.fov=140; state.showFov=true; state.hitPart='Head'
 state.airEnabled=true; state.airPart='HumanoidRootPart'; state.prediction=0.12; state.airPrediction=0.12
 state.autoPrediction=false; state.autoPredMath=250; state.autoBase=0.04; state.smoothing=0.22
-state.deepBlackTheme=true;state.smokeTheme=true;state.uiSounds=true;state.soundVolume=0.2;state.accent='Branco';state.uiOpacity=0.16;state.uiSize=1;state.reduceMotion=false;state.notifications=true
+state.adjustableSmoke=true;state.uiDarkness=1;state.deepBlackTheme=true;state.smokeTheme=true;state.uiSounds=true;state.soundVolume=0.2;state.accent='Branco';state.uiOpacity=0.38;state.uiSize=1;state.reduceMotion=false;state.notifications=true
 state.camMarker=false;state.camTracer=false;state.hideVisuals=false
 state.aimViewer=false;state.aimEstimate=false;state.aimLength=120
 state.hideKeyName='L'; state.camKeyName='Q'
@@ -28,7 +28,7 @@ local HttpService=game:GetService('HttpService')
 local settingsFile='evini-settings-'..tostring((game.GameId and game.GameId>0) and game.GameId or game.PlaceId or 0)..'.json'
 local defaults={}
 for k,v in pairs(state) do defaults[k]=v end
-local bounds={fovTransparency={0,1},cycleInterval={0.3,3},aimLength={10,500},uiOpacity={0,0.45},soundVolume={0,0.6},uiSize={0.45,1.5},size={2,30},fov={30,500},prediction={0,0.5},airPrediction={0,0.5},autoPredMath={100,1000},autoBase={0,0.2},smoothing={0,1}}
+local bounds={fovTransparency={0,1},cycleInterval={0.3,3},aimLength={10,500},uiDarkness={0,1},uiOpacity={0,0.8},soundVolume={0,0.6},uiSize={0.45,1.5},size={2,30},fov={30,500},prediction={0,0.5},airPrediction={0,0.5},autoPredMath={100,1000},autoBase={0,0.2},smoothing={0,1}}
 local options={accent={Branco=true,Cinza=true},hitPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true},airPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true}}
 local persistenceStatus='Salvamento indisponível neste executor'
 local persistenceReport=function() end
@@ -38,7 +38,7 @@ local function loadSettings()
     persistenceStatus='Salvamento automático ativo'
     local ok,data=pcall(function() return HttpService:JSONDecode(readfile(settingsFile)) end)
     if not ok or type(data)~='table' or data.version~=1 or type(data.settings)~='table' then return end
-    if data.settings.deepBlackTheme~=true then data.settings.uiOpacity=0.16 end
+    if data.settings.adjustableSmoke~=true then data.settings.uiOpacity=0.38 end
     for key,default in pairs(defaults) do
         local value=data.settings[key]
         if type(value)==type(default) then
@@ -463,7 +463,7 @@ local function render(dt)
         cameraStatus(cameraTarget and cameraTarget.name or 'Sem alvo',pingSeconds,predictionTime(false))
     end
 end
-local palette={bg=Color3.fromRGB(2,2,2),panel=Color3.fromRGB(10,10,10),edge=Color3.fromRGB(78,78,78),muted=Color3.fromRGB(198,198,193),white=Color3.fromRGB(235,235,235)}
+local palette={bg=Color3.fromRGB(48*(1-state.uiDarkness),48*(1-state.uiDarkness),48*(1-state.uiDarkness)),panel=Color3.fromRGB(10,10,10),edge=Color3.fromRGB(78,78,78),muted=Color3.fromRGB(198,198,193),white=Color3.fromRGB(235,235,235)}
 local rootUI=create('Frame',{Name='Hub',AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.fromScale(0.5,0.5),Size=UDim2.fromOffset(620,650),BackgroundTransparency=1,Visible=false},gui)
 local uiScale=create('UIScale',{Name='UserScale',Scale=1},rootUI)
 local panel=create('CanvasGroup',{Name='UnifiedPanel',AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.new(0.5,0,0.5,-22),Size=UDim2.new(1,0,1,44),BackgroundTransparency=1,GroupTransparency=1},rootUI)
@@ -603,11 +603,12 @@ local controlRefresh={}
 local function switch(p,value,key,onChange)
     local y=slot(p,42); rowText(p,value,y)
     local b=button(p.frame,'',UDim2.new(1,-56,0,y+8),UDim2.fromOffset(46,22)); b.Name=key
+    local gradient=b:FindFirstChildOfClass('UIGradient');if gradient then gradient.Color=ColorSequence.new(Color3.new(1,1,1)) end
     local corner=b:FindFirstChildOfClass('UICorner');if corner then corner:Destroy() end
     local shadow=create('Frame',{Name='ToggleShadow',Size=UDim2.fromOffset(19,19),BackgroundColor3=Color3.new(0,0,0),BackgroundTransparency=0.2,BorderSizePixel=0},b)
     local dot=create('Frame',{Name='ToggleKnob',Size=UDim2.fromOffset(16,16),BackgroundColor3=palette.white,BorderSizePixel=1,BorderColor3=Color3.fromRGB(50,50,50),ZIndex=2},b)
     local function refresh()
-        b.BackgroundColor3=state[key] and Color3.fromRGB(24,72,37) or Color3.fromRGB(48,48,48)
+        b.BackgroundColor3=state[key] and Color3.fromRGB(37,71,41) or Color3.fromRGB(48,48,48)
         dot.BackgroundColor3=palette.white
         local x=state[key] and 27 or 3
         shadow.Position=UDim2.fromOffset(x-1,3)
@@ -631,8 +632,8 @@ local function field(p,value,key,min,max,step,onChange)
     return box,set
 end
 local sliderDrag=nil
-local function slider(p,value,key,min,max,step)
-    local box,set=field(p,value,key,min,max,step)
+local function slider(p,value,key,min,max,step,onChange)
+    local box,set=field(p,value,key,min,max,step,onChange)
     local y=slot(p,24)-7
     local hit=create('TextButton',{Name=key..'_Slider',Text='',BackgroundTransparency=1,Position=UDim2.fromOffset(12,y),Size=UDim2.new(1,-24,0,22)},p.frame)
     local track=create('Frame',{Position=UDim2.fromOffset(0,8),Size=UDim2.new(1,0,0,3),BackgroundColor3=palette.edge,BorderSizePixel=0},hit)
@@ -689,7 +690,7 @@ local function layoutRoster()
         local visible=rosterFilter=='' or p.Name:lower():find(rosterFilter,1,true) or p.DisplayName:lower():find(rosterFilter,1,true)
         item.row.Visible=not not visible
         item.check.Text=selectedPlayer(p) and '✓' or ''
-        item.check.BackgroundColor3=selectedPlayer(p) and Color3.fromRGB(27,79,43) or palette.panel
+        item.check.BackgroundColor3=selectedPlayer(p) and Color3.fromRGB(37,71,41) or palette.panel
         if visible then item.row.Position=UDim2.fromOffset(0,y);y=y+62 end
     end
     playersPage.frame.Size=UDim2.new(1,-9,0,y+8)
@@ -709,6 +710,7 @@ local function addRoster(p)
     local name=text(row,p.DisplayName,UDim2.fromOffset(58,6),UDim2.new(1,-118,0,21),15);name.Font=Enum.Font.GothamBold
     text(row,'@'..p.Name,UDim2.fromOffset(58,29),UDim2.new(1,-118,0,18),12).TextColor3=palette.muted
     local check=button(row,'',UDim2.new(1,-43,0,11),UDim2.fromOffset(32,32));check.Name='Select_'..id;check.TextSize=22
+    local gradient=check:FindFirstChildOfClass('UIGradient');if gradient then gradient.Color=ColorSequence.new(Color3.new(1,1,1)) end
     local item={player=p,row=row,check=check};roster[p.UserId]=item
     item.connection=check.Activated:Connect(function() state.playerSelection[id]=not selectedPlayer(p);selectionChanged() end)
     layoutRoster()
@@ -849,6 +851,9 @@ arrangeFolds()
 local function refreshAppearance()
     green=accents[state.accent]
     for _,binding in ipairs(accentBindings) do if binding[1].Parent then binding[1][binding[2]]=green end end
+    local shade=math.floor(48*(1-state.uiDarkness)+0.5)
+    palette.bg=Color3.fromRGB(shade,shade,shade)
+    topFill.BackgroundColor3=palette.bg;lowerFill.BackgroundColor3=palette.bg
     topFill.BackgroundTransparency=state.uiOpacity;lowerFill.BackgroundTransparency=state.uiOpacity
     for _,refresh in pairs(controlRefresh) do refresh() end
     refreshTabs()
@@ -856,7 +861,8 @@ local function refreshAppearance()
 end
 label(settingsPage,'Aparência')
 choice(settingsPage,'Contraste','accent',{{'Branco','Branco'},{'Cinza','Cinza claro'}},refreshAppearance)
-field(settingsPage,'Transparência · 0–0,45','uiOpacity',0,0.45,0.01,refreshAppearance)
+slider(settingsPage,'Transparência · 0–0,80','uiOpacity',0,0.8,0.01,refreshAppearance)
+slider(settingsPage,'Escurecimento · 1 = preto','uiDarkness',0,1,0.05,refreshAppearance)
 slider(settingsPage,'Tamanho da interface · 0,45–1,50','uiSize',0.45,1.5,0.05)
 local refreshSize=controlRefresh.uiSize
 controlRefresh.uiSize=function() refreshSize();fitUI() end
