@@ -1,4 +1,4 @@
-# EVINI 4.0
+# EVINI 4.1
 
 Hub independente inspirado nas capturas das configurações do Da Hood: painel único translúcido, somente cantos superiores arredondados, base reta, título EV centralizado, abas horizontais, interruptores verdes e botão de fechar vermelho. Não carrega Nitrogen ou Azure.
 
@@ -83,3 +83,9 @@ Aviso de alvo movido para a região inferior direita, com 28 pixels de margem la
 ## Fundo 4.0
 
 Fundo preto puro com transparência 0,10 (90% opaco). Aplicado uma vez ao atualizar; controles de transparência e escurecimento permanecem editáveis e salvos.
+
+## Áudio 4.1
+
+Incluído trecho de 0,24 s (3,525–3,765 s) da gravação fornecida pelo usuário, próximo à troca de aba. Áudio mono PCM, filtrado levemente e normalizado, sem metadados do vídeo. Não é o asset original identificado, nem teve confirmação auditiva neste ambiente. O vídeo completo não foi publicado.
+
+O hub tenta carregar assets/settings-click-v1.wav por getcustomasset/getsynasset e writefile, mantém velocidade original e respeita mute/volume. Som padrão permanece ativo quando a API ou o carregamento falha; o estado aparece em Ajustes. A aceitação do arquivo pelo Opiumware precisa ser confirmada no cliente.

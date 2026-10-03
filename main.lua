@@ -1,4 +1,4 @@
--- EVINI 4.0: fonte independente. Nao carrega o Nitrogen.
+-- EVINI 4.1: fonte independente. Nao carrega o Nitrogen.
 -- Alteracoes de hitbox sao locais; o servidor pode ignora-las.
 local Players = game:GetService('Players')
 local UIS = game:GetService('UserInputService')
@@ -100,6 +100,34 @@ local function text(parent, value, pos, size, fontSize)
     return create('TextLabel',{Text=value,Position=pos,Size=size,BackgroundTransparency=1,TextColor3=Color3.fromRGB(235,235,235),Font=Enum.Font.Gotham,TextSize=fontSize or 14,TextXAlignment=Enum.TextXAlignment.Left,TextWrapped=true},parent)
 end
 local clickSound=create('Sound',{Name='UIClick',SoundId='rbxasset://sounds/electronicpingshort.wav',Volume=state.soundVolume,PlaybackSpeed=1.6},gui)
+local soundStatus='Preparando som da gravação…'
+local soundReport=function() end
+local function reportSound(value) soundStatus=value;soundReport(value) end
+task.spawn(function()
+    local loader=type(getcustomasset)=='function' and getcustomasset or (type(getsynasset)=='function' and getsynasset)
+    if not loader or type(writefile)~='function' then reportSound('Som padrão: executor sem suporte a áudio local.');return end
+    local ok,asset=pcall(function()
+        local path='evini-settings-click-v1.wav'
+        if type(isfile)~='function' or not isfile(path) then
+            writefile(path,game:HttpGet('https://raw.githubusercontent.com/EDUVlNI/evini-loader/main/assets/settings-click-v1.wav'))
+        end
+        return loader(path)
+    end)
+    if not alive then return end
+    if not ok or type(asset)~='string' or asset=='' then reportSound('Som gravado indisponível; som padrão ativo.');return end
+    local candidate=create('Sound',{Name='RecordedClick',SoundId=asset,PlaybackSpeed=1,Volume=state.soundVolume},gui)
+    local expired=false
+    task.delay(6,function()
+        if alive and not expired and not candidate.IsLoaded then expired=true;candidate:Destroy();reportSound('Som gravado não carregou; som padrão ativo.') end
+    end)
+    local loaded=pcall(function() ContentProvider:PreloadAsync({candidate}) end)
+    if not alive or expired then return end
+    if loaded and candidate.IsLoaded then
+        clickSound:Destroy();clickSound=candidate;reportSound('Som recortado da sua gravação ativo.')
+    else
+        expired=true;candidate:Destroy();reportSound('Som gravado não carregou; som padrão ativo.')
+    end
+end)
 local function playClick()
     if not alive or not state.uiSounds then return end
     clickSound.Volume=state.soundVolume
@@ -868,6 +896,8 @@ local refreshSize=controlRefresh.uiSize
 controlRefresh.uiSize=function() refreshSize();fitUI() end
 refreshSizeControls=controlRefresh.uiSize
 switch(settingsPage,'Sons dos botões','uiSounds')
+local soundInfo=text(settingsPage.frame,soundStatus,UDim2.fromOffset(0,slot(settingsPage,38)),UDim2.new(1,-4,0,34),11);soundInfo.Name='SoundStatus';soundInfo.TextColor3=palette.muted
+soundReport=function(value) if alive then soundInfo.Text=value end end
 slider(settingsPage,'Volume dos botões','soundVolume',0,0.6,0.05)
 
 switch(settingsPage,'Notificações de alvo','notifications')
