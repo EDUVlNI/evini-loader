@@ -1,4 +1,4 @@
-# EVINI 3.3
+# EVINI 3.4
 
 Hub independente inspirado nas capturas das configurações do Da Hood: painel único translúcido, somente cantos superiores arredondados, base reta, título EV centralizado, abas horizontais, interruptores verdes e botão de fechar vermelho. Não carrega Nitrogen ou Azure.
 
@@ -49,3 +49,13 @@ Hitbox agora tem aba própria. Painel e textos clareados, barra vertical próxim
 Mira: transparência do FOV de 0 a 1; alternância opcional entre cabeça e tronco com intervalo de 0,3 a 3 segundos (Air Part prevalece durante salto). Alvo encoberto ou fora da tela pausa o movimento sem apagar a seleção; retoma automaticamente quando visível. Morte/K.O., exclusão, tecla e Esc continuam liberando o alvo. Não troca automaticamente de jogador.
 
 Testes simulados verificam pausa/retomada sem nova tecla, alternância, transparência do FOV, cinco abas, ausência de blur e regressões anteriores. Compilação passou. Fonte/imagem, aparência e comportamento no cliente real ainda precisam de validação no Roblox.
+
+## Revisão visual 3.4
+
+Título Bevan branco espesso com contorno preto, desenhado com 398 retângulos estáticos nativos: não usa getcustomasset, arquivo local nem carregamento remoto. A fonte fina de fallback não é mais exibida. Os retângulos são criados uma vez, sem atualização por frame.
+
+Tema preto fumê, transparência inicial de 0,28 aplicada uma vez ao migrar do tema cinza. As escolhas posteriores de transparência continuam salvas. Abas com borda preta, brilho interno superior e gradiente escuro. Abrir, fechar e trocar de aba não movimentam a interface; somente sons.
+
+Tamanho agora muda a largura e altura da janela, mantendo textos e controles em tamanho legível. Largura mínima 400 e altura mínima 430 pixels lógicos; em telas menores a interface inteira é limitada ao viewport. Campos e interruptores centralizados nas linhas, margem interna comum e barras mais curtas. Cinco abas distribuem-se proporcionalmente.
+
+Compilação e regressões simuladas passaram. A renderização real no Opiumware ainda requer confirmação pelo usuário; não alegamos reprodução exata comprovada no jogo.

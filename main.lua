@@ -1,4 +1,4 @@
--- EVINI 3.3: fonte independente. Nao carrega o Nitrogen.
+-- EVINI 3.4: fonte independente. Nao carrega o Nitrogen.
 -- Alteracoes de hitbox sao locais; o servidor pode ignora-las.
 local Players = game:GetService('Players')
 local UIS = game:GetService('UserInputService')
@@ -17,7 +17,7 @@ state.camEnabled=false; state.camNPC=false; state.wallCheck=true; state.camTeam=
 state.fovTransparency=0.22;state.cycleParts=false;state.cycleInterval=0.8;state.fov=140; state.showFov=true; state.hitPart='Head'
 state.airEnabled=true; state.airPart='HumanoidRootPart'; state.prediction=0.12; state.airPrediction=0.12
 state.autoPrediction=false; state.autoPredMath=250; state.autoBase=0.04; state.smoothing=0.22
-state.uiSounds=true;state.soundVolume=0.2;state.accent='Branco';state.uiOpacity=0.18;state.uiSize=1;state.reduceMotion=false;state.notifications=true
+state.smokeTheme=true;state.uiSounds=true;state.soundVolume=0.2;state.accent='Branco';state.uiOpacity=0.28;state.uiSize=1;state.reduceMotion=false;state.notifications=true
 state.camMarker=false;state.camTracer=false;state.hideVisuals=false
 state.aimViewer=false;state.aimEstimate=false;state.aimLength=120
 state.hideKeyName='L'; state.camKeyName='Q'
@@ -38,6 +38,7 @@ local function loadSettings()
     persistenceStatus='Salvamento automático ativo'
     local ok,data=pcall(function() return HttpService:JSONDecode(readfile(settingsFile)) end)
     if not ok or type(data)~='table' or data.version~=1 or type(data.settings)~='table' then return end
+    if data.settings.smokeTheme~=true then data.settings.uiOpacity=0.28 end
     for key,default in pairs(defaults) do
         local value=data.settings[key]
         if type(value)==type(default) then
@@ -105,13 +106,15 @@ local function playClick()
     pcall(function() clickSound.TimePosition=0;clickSound:Play() end)
 end
 local function button(parent,value,pos,size,radius)
-    local b = create('TextButton',{Text=value,Position=pos,Size=size,BackgroundColor3=Color3.fromRGB(24,24,24),TextColor3=Color3.fromRGB(200,200,200),BorderSizePixel=0,Font=Enum.Font.Gotham,TextSize=13},parent)
+    local b = create('TextButton',{Text=value,Position=pos,Size=size,BackgroundColor3=Color3.fromRGB(48,48,48),TextColor3=Color3.fromRGB(200,200,200),BorderSizePixel=0,Font=Enum.Font.Gotham,TextSize=13},parent)
     round(b,radius or 1)
-    create('UIGradient',{Rotation=90,Color=ColorSequence.new(Color3.new(1,1,1),Color3.fromRGB(175,175,175))},b)
-    create('UIStroke',{Color=Color3.fromRGB(76,76,76),Thickness=1,ApplyStrokeMode=Enum.ApplyStrokeMode.Border},b)
+    create('UIGradient',{Rotation=90,Color=ColorSequence.new(Color3.new(1,1,1),Color3.fromRGB(94,94,94))},b)
+    create('UIStroke',{Color=Color3.fromRGB(0,0,0),Thickness=1,ApplyStrokeMode=Enum.ApplyStrokeMode.Border},b)
     -- Instance-owned event is released with the button, including roster rows.
     b.Activated:Connect(playClick)
-    b.AutoButtonColor=true
+    b.AutoButtonColor=false
+    create('Frame',{Position=UDim2.fromOffset(1,1),Size=UDim2.new(1,-2,0,1),BackgroundColor3=Color3.fromRGB(118,118,118),BorderSizePixel=0},b)
+    create('Frame',{Position=UDim2.fromOffset(1,1),Size=UDim2.new(0,1,1,-2),BackgroundColor3=Color3.fromRGB(74,74,74),BorderSizePixel=0},b)
     return b
 end
 local function restore(part)
@@ -460,7 +463,7 @@ local function render(dt)
         cameraStatus(cameraTarget and cameraTarget.name or 'Sem alvo',pingSeconds,predictionTime(false))
     end
 end
-local palette={bg=Color3.fromRGB(36,36,34),panel=Color3.fromRGB(47,47,44),edge=Color3.fromRGB(98,98,94),muted=Color3.fromRGB(198,198,193),white=Color3.fromRGB(235,235,235)}
+local palette={bg=Color3.fromRGB(8,8,8),panel=Color3.fromRGB(18,18,18),edge=Color3.fromRGB(78,78,78),muted=Color3.fromRGB(198,198,193),white=Color3.fromRGB(235,235,235)}
 local rootUI=create('Frame',{Name='Hub',AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.fromScale(0.5,0.5),Size=UDim2.fromOffset(620,650),BackgroundTransparency=1,Visible=false},gui)
 local uiScale=create('UIScale',{Name='UserScale',Scale=1},rootUI)
 local panel=create('CanvasGroup',{Name='UnifiedPanel',AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.new(0.5,0,0.5,-22),Size=UDim2.new(1,0,1,44),BackgroundTransparency=1,GroupTransparency=1},rootUI)
@@ -470,9 +473,12 @@ local fitReadout=function() end
 local function fitUI()
     local camera=Workspace.CurrentCamera
     if camera then
-        local available=math.min((camera.ViewportSize.X-28)/620,(camera.ViewportSize.Y-60)/738)
-        uiScale.Scale=math.max(0.1,math.min(state.uiSize,available))
-        fitReadout(uiScale.Scale)
+        local width=math.clamp(620*state.uiSize,400,900)
+        local height=math.clamp(650*state.uiSize,430,900)
+        local scale=math.min(1,(camera.ViewportSize.X-28)/width,(camera.ViewportSize.Y-100)/height)
+        uiScale.Scale=math.max(0.1,scale)
+        rootUI.Size=UDim2.fromOffset(width,height)
+        fitReadout(state.uiSize)
     end
 end
 -- Clip the lower half of a rounded rectangle, then continue with a straight body.
@@ -490,26 +496,20 @@ local header=region('Header',0,0,620,92)
 local sidebar=region('Navigation',10,94,600,46)
 local body=region('Content',10,142,600,462)
 local footer=region('Footer',10,610,600,34)
+header.Size=UDim2.new(1,0,0,76)
+sidebar.Position=UDim2.fromOffset(10,76);sidebar.Size=UDim2.new(1,-20,0,46)
+body.Position=UDim2.fromOffset(10,126);body.Size=UDim2.new(1,-20,1,-168)
+footer.Position=UDim2.new(0,10,1,-38);footer.Size=UDim2.new(1,-20,0,34)
 local title=text(header,'EVINI',UDim2.fromOffset(100,-42),UDim2.new(1,-200,0,84),60)
-title.Name='HubTitle';title.Font=Enum.Font.Merriweather;title.TextXAlignment=Enum.TextXAlignment.Center;title.TextStrokeTransparency=0;title.TextStrokeColor3=Color3.new(0,0,0)
+title.Name='HubTitle';title.Font=Enum.Font.GothamBlack;title.TextXAlignment=Enum.TextXAlignment.Center;title.TextStrokeTransparency=0;title.TextStrokeColor3=Color3.new(0,0,0)
 create('UIStroke',{Color=Color3.new(0,0,0),Thickness=3},title)
-local titleArt=create('ImageLabel',{Name='TitleArtwork',Position=title.Position,Size=title.Size,BackgroundTransparency=1,ScaleType=Enum.ScaleType.Fit,Visible=false},header)
--- Bevan is rendered as artwork; unsupported asset APIs retain the text fallback.
-task.spawn(function()
-    local assetLoader=type(getcustomasset)=='function' and getcustomasset or (type(getsynasset)=='function' and getsynasset)
-    if not assetLoader or type(writefile)~='function' then return end
-    local ok,asset=pcall(function()
-        local path='evini-title-bevan-v1.png'
-        if type(isfile)~='function' or not isfile(path) then
-            writefile(path,game:HttpGet('https://raw.githubusercontent.com/EDUVlNI/evini-loader/main/assets/evini-bevan-v1.png'))
-        end
-        return assetLoader(path)
-    end)
-    if not alive or not ok or type(asset)~='string' then return end
-    titleArt.Image=asset
-    pcall(function() ContentProvider:PreloadAsync({titleArt}) end)
-    if alive and titleArt.IsLoaded then titleArt.Visible=true;title.Visible=false end
-end)
+local titleGlyphs=create('Frame',{Name='BevanTitle',AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.new(0.5,0,0,0),Size=UDim2.new(0.65,0,0,84),BackgroundTransparency=1},header)
+create('UIAspectRatioConstraint',{AspectRatio=3.309090909090909,DominantAxis=Enum.DominantAxis.Width},titleGlyphs)
+local glyphData='0,19,10,69,1;0,90,10,45,1;0,139,10,114,1;0,267,10,78,1;0,17,11,239,1;0,265,11,82,1;0,16,12,241,1;0,263,12,86,1;0,15,13,243,1;0,262,13,88,2;0,14,14,245,2;0,13,16,247,1;0,261,15,90,2;0,13,17,338,1;0,171,18,3,1;0,213,18,6,1;0,251,18,18,1;0,298,18,6,1;0,252,19,17,1;0,299,19,4,1;0,253,20,16,2;0,254,22,15,1;0,255,23,14,2;0,256,25,13,2;0,257,27,12,1;0,258,28,11,2;0,259,30,10,2;0,260,32,9,1;0,299,20,5,13;0,299,33,4,1;0,13,18,8,17;0,86,18,6,17;0,133,18,8,17;0,172,19,2,16;0,214,19,4,16;0,261,33,8,2;0,299,34,5,1;0,343,18,8,17;0,13,35,16,1;0,335,35,16,1;0,13,36,15,1;0,126,35,22,2;0,165,35,17,2;0,262,35,14,2;0,86,35,13,3;0,263,37,13,1;0,336,36,15,2;0,14,37,14,2;0,52,35,17,5;0,127,37,20,3;0,164,37,18,3;0,264,38,12,2;0,336,38,14,2;0,15,39,13,2;0,127,40,19,1;0,336,40,13,1;0,17,41,11,1;0,86,38,14,4;0,265,40,11,2;0,336,41,12,1;0,19,42,9,1;0,163,40,19,3;0,206,35,20,8;0,266,42,10,1;0,291,35,20,8;0,336,42,10,1;0,128,41,18,3;0,162,43,9,1;0,86,42,15,3;0,267,43,9,2;0,52,40,18,6;0,162,44,8,2;0,64,46,6,1;0,129,44,16,3;0,161,46,9,1;0,268,45,8,2;0,65,47,6,1;0,86,45,16,3;0,130,47,15,1;0,269,47,7,1;0,161,47,8,2;0,65,48,38,2;0,270,48,6,2;0,65,50,29,1;0,95,50,8,1;0,130,48,14,3;0,160,49,9,2;0,95,51,9,1;0,131,51,13,1;0,160,51,8,1;0,271,50,5,2;0,65,51,28,2;0,272,52,4,1;0,96,52,8,2;0,159,52,9,2;0,241,52,1,2;0,65,53,27,2;0,131,52,12,3;0,241,54,2,1;0,273,53,3,2;0,96,54,9,2;0,159,54,8,2;0,65,55,28,2;0,97,56,8,1;0,158,56,9,1;0,241,55,3,2;0,274,55,2,2;0,132,55,10,3;0,275,57,1,1;0,97,57,9,2;0,158,57,8,2;0,241,57,4,2;0,65,57,29,3;0,157,59,9,1;0,241,59,5,1;0,65,60,6,1;0,98,59,8,2;0,133,58,8,3;0,65,61,5,1;0,98,61,9,1;0,133,61,7,1;0,157,60,8,2;0,241,60,6,2;0,156,62,9,1;0,99,62,8,2;0,241,62,7,2;0,99,64,9,1;0,134,62,6,3;0,156,63,8,2;0,241,64,8,1;0,155,65,9,1;0,20,43,8,24;0,100,65,8,2;0,174,43,8,24;0,206,43,8,24;0,218,43,8,24;0,241,65,9,2;0,303,43,8,24;0,336,43,8,24;0,19,67,9,1;0,100,67,9,1;0,135,65,4,3;0,155,66,8,2;0,171,67,11,1;0,291,43,9,25;0,301,67,10,1;0,336,67,10,1;0,17,68,11,1;0,52,62,18,7;0,136,68,3,1;0,169,68,13,1;0,241,67,10,2;0,336,68,12,1;0,16,69,12,1;0,101,68,8,2;0,154,68,9,2;0,168,69,14,1;0,241,69,11,1;0,336,69,13,1;0,15,70,13,1;0,101,70,9,1;0,136,69,2,3;0,154,70,8,2;0,167,70,15,2;0,241,70,12,2;0,336,70,14,2;0,14,71,14,2;0,102,71,8,2;0,137,72,1,1;0,153,72,9,1;0,241,72,13,1;0,13,73,15,1;0,336,72,15,2;0,13,74,16,1;0,52,69,17,6;0,102,73,9,2;0,153,73,8,2;0,166,72,16,3;0,206,67,20,8;0,241,73,14,2;0,291,68,20,7;0,335,74,16,1;0,152,75,9,1;0,291,75,13,1;0,103,75,8,2;0,248,75,8,2;0,291,76,12,1;0,103,77,9,1;0,152,76,8,2;0,151,78,9,1;0,248,77,9,2;0,104,78,8,2;0,248,79,10,1;0,104,80,9,1;0,151,79,8,2;0,150,81,9,1;0,248,80,11,2;0,105,81,8,2;0,248,82,12,1;0,105,83,9,1;0,150,82,8,2;0,248,83,13,2;0,106,84,8,2;0,149,84,9,2;0,106,86,9,1;0,149,86,8,1;0,248,85,14,2;0,248,87,15,1;0,107,87,8,2;0,148,87,9,2;0,107,89,9,1;0,248,88,16,2;0,291,77,13,13;0,148,89,8,2;0,214,75,4,16;0,248,90,17,1;0,291,90,12,1;0,13,75,8,17;0,86,60,8,32;0,108,90,8,2;0,147,91,9,1;0,166,75,8,17;0,213,91,6,1;0,248,91,18,1;0,291,91,13,1;0,343,75,8,17;0,166,92,185,1;0,13,92,81,2;0,108,92,47,2;0,166,93,90,1;0,257,93,94,1;0,14,94,80,1;0,109,94,46,1;0,167,94,89,1;0,258,94,93,1;0,14,95,79,1;0,109,95,45,1;0,167,95,88,1;0,258,95,92,1;0,15,96,78,1;0,110,96,43,1;0,168,96,87,1;0,259,96,91,1;0,16,97,76,1;0,111,97,41,1;0,169,97,85,1;0,260,97,37,1;0,298,97,51,1;0,17,98,73,1;0,112,98,39,1;0,170,98,83,1;0,261,98,34,1;0,299,98,48,1;0,19,99,69,1;0,114,99,35,1;0,172,99,78,1;0,264,99,29,1;0,302,99,43,1;1,219,19,32,1;1,219,20,33,1;1,219,21,34,2;1,219,23,35,1;1,219,24,36,2;1,219,26,37,2;1,219,28,38,2;1,219,30,39,1;1,219,31,40,2;1,22,19,64,15;1,92,19,41,15;1,141,19,30,15;1,175,19,38,15;1,219,33,41,1;1,269,19,29,15;1,304,19,39,15;1,28,34,25,1;1,69,34,17,1;1,98,34,28,1;1,148,34,17,1;1,182,34,24,1;1,226,34,34,1;1,276,34,16,1;1,311,34,25,1;1,99,35,26,1;1,149,35,15,1;1,226,35,35,1;1,99,36,27,1;1,148,36,16,2;1,226,36,36,2;1,100,37,26,2;1,100,39,27,1;1,148,38,15,2;1,226,38,37,2;1,147,40,16,1;1,226,40,38,1;1,70,35,16,7;1,101,40,26,3;1,147,41,15,2;1,226,41,39,2;1,146,43,16,1;1,226,43,40,2;1,102,43,26,3;1,226,45,41,1;1,29,35,23,12;1,71,42,15,5;1,103,46,25,1;1,146,44,15,3;1,226,46,42,2;1,103,47,26,2;1,104,49,25,1;1,145,47,15,3;1,226,48,43,2;1,144,50,16,1;1,226,50,44,1;1,104,50,26,2;1,226,51,14,1;1,242,51,29,1;1,243,52,28,1;1,105,52,25,2;1,144,51,15,3;1,243,53,29,1;1,105,54,26,1;1,244,54,28,1;1,244,55,29,1;1,106,55,25,2;1,143,54,15,3;1,245,56,29,1;1,106,57,26,1;1,246,57,28,1;1,246,58,29,1;1,107,58,25,2;1,142,57,15,3;1,247,59,28,1;1,277,35,14,25;1,71,60,14,1;1,142,60,14,1;1,247,60,44,1;1,29,47,35,15;1,107,60,26,2;1,248,61,43,1;1,141,61,15,2;1,108,62,25,2;1,249,62,42,2;1,108,64,26,1;1,141,63,14,2;1,71,61,15,5;1,250,64,41,2;1,140,65,15,2;1,251,66,40,1;1,109,65,25,3;1,140,67,14,1;1,252,67,39,2;1,139,68,15,2;1,110,68,25,3;1,139,70,14,1;1,253,69,38,2;1,138,71,15,1;1,254,71,37,1;1,111,71,25,3;1,138,72,14,2;1,226,52,15,22;1,255,72,36,2;1,29,62,23,13;1,70,66,16,9;1,112,74,24,1;1,137,74,15,1;1,182,35,23,40;1,226,74,14,1;1,312,35,23,40;1,28,75,25,1;1,69,75,17,1;1,112,75,40,1;1,182,75,24,1;1,226,75,15,1;1,256,74,35,2;1,311,75,25,1;1,112,76,39,1;1,257,76,34,1;1,113,77,38,2;1,258,77,33,2;1,113,79,37,2;1,259,79,32,2;1,114,81,36,1;1,260,81,31,1;1,114,82,35,2;1,261,82,30,2;1,115,84,34,1;1,262,84,29,1;1,115,85,33,2;1,263,85,28,2;1,116,87,32,1;1,264,87,27,2;1,116,88,31,2;1,22,76,64,15;1,117,90,30,1;1,175,76,38,15;1,219,76,29,15;1,265,89,26,2;1,304,76,39,15'
+for color,x,y,w,h in glyphData:gmatch('(%d+),(%d+),(%d+),(%d+),(%d+)') do
+    create('Frame',{Position=UDim2.fromScale(tonumber(x)/364,tonumber(y)/110),Size=UDim2.fromScale(tonumber(w)/364,tonumber(h)/110),BackgroundColor3=color=='1' and Color3.new(1,1,1) or Color3.new(0,0,0),BorderSizePixel=0},titleGlyphs)
+end
+title.Visible=false
 local hide=button(header,'−',UDim2.new(1,-90,0,28),UDim2.fromOffset(30,30));hide.Name='Hide';hide.TextSize=22
 local close=button(header,'×',UDim2.new(1,-52,0,28),UDim2.fromOffset(30,30));close.Name='Close';close.TextSize=22;close.BackgroundColor3=Color3.fromRGB(99,33,29)
 local smaller=button(header,'−',UDim2.fromOffset(22,30),UDim2.fromOffset(24,26));smaller.Name='SmallerUI'
@@ -520,30 +520,20 @@ local refreshSizeControls=function() end
 local function setUISize(value)
     state.uiSize=math.clamp(value,0.45,1.5);fitUI();refreshSizeControls();queueSave()
 end
-connect(smaller.Activated,function() setUISize(uiScale.Scale-0.05) end)
-connect(larger.Activated,function() setUISize(uiScale.Scale+0.05) end)
+connect(smaller.Activated,function() setUISize(state.uiSize-0.05) end)
+connect(larger.Activated,function() setUISize(state.uiSize+0.05) end)
 connect(scaleReadout.Activated,function() setUISize(1) end)
 local animationVersion=0
 local activeTweens={}
 local destroyed=false
-local function tween(obj,duration,props)
-    local t=TweenService:Create(obj,TweenInfo.new(state.reduceMotion and 0 or duration,Enum.EasingStyle.Quart,Enum.EasingDirection.Out),props)
-    t:Play(); table.insert(activeTweens,t); return t
-end
 local function showUI(open,after)
     if not alive then return end
     animationVersion=animationVersion+1
-    local version=animationVersion
     for _,t in ipairs(activeTweens) do t:Cancel() end
-    activeTweens={}; uiBusy=true; uiOpen=open; resetCamera()
-    rootUI.Visible=true; fitUI()
-    tween(panel,0.22,{GroupTransparency=open and 0 or 1,Position=open and UDim2.new(0.5,0,0.5,-22) or UDim2.new(0.5,0,0.5,-8)})
-    tween(motionScale,0.22,{Scale=(open or state.reduceMotion) and 1 or 0.94})
-    task.delay(state.reduceMotion and 0 or 0.23,function()
-        if not alive or version~=animationVersion then return end
-        uiBusy=false;rootUI.Visible=open
-        if after then after() end
-    end)
+    activeTweens={};uiBusy=false;uiOpen=open;resetCamera();fitUI()
+    panel.GroupTransparency=0;panel.Position=UDim2.new(0.5,0,0.5,-22);motionScale.Scale=1
+    rootUI.Visible=open
+    if after then after() end
 end
 local pages,tabs={},{}
 local currentPage='Mira'
@@ -553,17 +543,14 @@ local function page(name,index)
     frame.VerticalScrollBarInset=Enum.ScrollBarInset.Always
     local content=create('Frame',{Name=name..'Content',Position=UDim2.fromOffset(2,2),Size=UDim2.new(1,-20,0,0),BackgroundTransparency=1,BorderSizePixel=0},frame)
     pages[name]={frame=content,scroll=frame,y=0};accent(frame,'ScrollBarImageColor3')
-    local b=button(sidebar,name,UDim2.fromOffset(6+(index-1)*118,5),UDim2.fromOffset(112,34)); b.Name='Tab_'..name; b.Font=Enum.Font.Gotham
+    local b=button(sidebar,name,UDim2.new((index-1)/5,3,0,5),UDim2.new(0.2,-6,0,34)); b.Name='Tab_'..name; b.Font=Enum.Font.GothamMedium;b.TextSize=14
     tabs[name]=b
     connect(b.Activated,function()
         currentPage=name
         for key,p in pairs(pages) do
             if p.tabTween then p.tabTween:Cancel() end
             p.scroll.Visible=key==name;tabs[key].TextColor3=key==name and green or palette.muted
-            if key==name then
-                p.scroll.Position=UDim2.fromOffset(8,state.reduceMotion and 12 or 17)
-                p.tabTween=TweenService:Create(p.scroll,TweenInfo.new(state.reduceMotion and 0 or 0.14,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Position=UDim2.fromOffset(8,12)})
-                p.tabTween:Play()
+            if key==name then p.scroll.Position=UDim2.fromOffset(8,12)
             end
         end
     end)
@@ -590,12 +577,12 @@ local function label(p,value,description)
 end
 local function rowText(p,value,y)
     local backdrop=create('Frame',{Position=UDim2.fromOffset(0,y),Size=UDim2.new(1,0,0,38),BackgroundColor3=palette.panel,BackgroundTransparency=0.45,BorderSizePixel=1,BorderColor3=Color3.fromRGB(5,5,5)},p.frame)
-    local t=text(p.frame,value,UDim2.fromOffset(10,y+5),UDim2.new(1,-132,0,24),13); t.Font=Enum.Font.Gotham; return t
+    local t=text(p.frame,value,UDim2.fromOffset(10,y+7),UDim2.new(1,-132,0,24),13); t.Font=Enum.Font.Gotham; return t
 end
 local controlRefresh={}
 local function switch(p,value,key,onChange)
     local y=slot(p,42); rowText(p,value,y)
-    local b=button(p.frame,'',UDim2.new(1,-46,0,y+6),UDim2.fromOffset(46,22)); b.Name=key
+    local b=button(p.frame,'',UDim2.new(1,-56,0,y+8),UDim2.fromOffset(46,22)); b.Name=key
     local dot=create('Frame',{Size=UDim2.fromOffset(14,14),BorderSizePixel=0},b); round(dot,2)
     local function refresh()
         b.BackgroundColor3=state[key] and Color3.fromRGB(27,79,43) or palette.edge
@@ -607,7 +594,7 @@ local function switch(p,value,key,onChange)
 end
 local function field(p,value,key,min,max,step,onChange)
     local y=slot(p,46); rowText(p,value,y)
-    local box=create('TextBox',{Name=key=='size' and 'SizeInput' or key,Position=UDim2.new(1,-106,0,y),Size=UDim2.fromOffset(106,32),BackgroundColor3=palette.panel,BorderSizePixel=0,Text=tostring(state[key]),TextColor3=palette.white,ClearTextOnFocus=false,Font=Enum.Font.Gotham,TextSize=13},p.frame)
+    local box=create('TextBox',{Name=key=='size' and 'SizeInput' or key,Position=UDim2.new(1,-116,0,y+3),Size=UDim2.fromOffset(106,32),BackgroundColor3=palette.panel,BorderSizePixel=0,Text=tostring(state[key]),TextColor3=palette.white,ClearTextOnFocus=false,Font=Enum.Font.Gotham,TextSize=13},p.frame)
     round(box,3); create('UIStroke',{Color=palette.edge,Thickness=1,ApplyStrokeMode=Enum.ApplyStrokeMode.Border},box)
     local function set(v)
         if v and v==v then state[key]=math.floor(math.clamp(v,min,max)/step+0.5)*step end
@@ -623,7 +610,7 @@ local sliderDrag=nil
 local function slider(p,value,key,min,max,step)
     local box,set=field(p,value,key,min,max,step)
     local y=slot(p,24)-7
-    local hit=create('TextButton',{Name=key..'_Slider',Text='',BackgroundTransparency=1,Position=UDim2.fromOffset(0,y),Size=UDim2.new(1,0,0,22)},p.frame)
+    local hit=create('TextButton',{Name=key..'_Slider',Text='',BackgroundTransparency=1,Position=UDim2.fromOffset(12,y),Size=UDim2.new(1,-24,0,22)},p.frame)
     local track=create('Frame',{Position=UDim2.fromOffset(0,8),Size=UDim2.new(1,0,0,3),BackgroundColor3=palette.edge,BorderSizePixel=0},hit)
     local fill=create('Frame',{Size=UDim2.fromScale((state[key]-min)/(max-min),1),BackgroundColor3=green,BorderSizePixel=0},track)
     accent(fill,'BackgroundColor3')
@@ -643,7 +630,7 @@ local function slider(p,value,key,min,max,step)
 end
 local function choice(p,value,key,options,onChange)
     local y=slot(p,46); local caption=rowText(p,value,y); caption.Size=UDim2.new(1,-166,0,24)
-    local b=button(p.frame,'',UDim2.new(1,-154,0,y),UDim2.fromOffset(154,32)); b.Name=key; b.Font=Enum.Font.Gotham; b.TextSize=11
+    local b=button(p.frame,'',UDim2.new(1,-164,0,y+3),UDim2.fromOffset(154,32)); b.Name=key; b.Font=Enum.Font.Gotham; b.TextSize=11
     local function refresh()
         for _,o in ipairs(options) do if o[1]==state[key] then b.Text=o[2]..'  >' end end
     end
@@ -804,7 +791,7 @@ local function stopCapture() capturing=nil; captureVersion=captureVersion+1; ref
 local function keyField(value,which)
     local p=which~='hide' and camPage or settingsPage
     local y=which=='cam' and camKeyY or slot(p,46); rowText(p,value,y)
-    local b=button(p.frame,'',UDim2.new(1,-106,0,y),UDim2.fromOffset(106,32)); b.Name=which=='hide' and 'Keybind' or 'CamKeybind'; keyButtons[which]=b
+    local b=button(p.frame,'',UDim2.new(1,-116,0,y+3),UDim2.fromOffset(106,32)); b.Name=which=='hide' and 'Keybind' or 'CamKeybind'; keyButtons[which]=b
     connect(b.Activated,function()
         if capturing==which then stopCapture(); return end
         stopCapture(); capturing=which; resetCamera(); b.Text='Tecla?'; local version=captureVersion
@@ -852,7 +839,7 @@ controlRefresh.uiSize=function() refreshSize();fitUI() end
 refreshSizeControls=controlRefresh.uiSize
 switch(settingsPage,'Sons dos botões','uiSounds')
 slider(settingsPage,'Volume dos botões','soundVolume',0,0.6,0.05)
-switch(settingsPage,'Reduzir animações','reduceMotion')
+
 switch(settingsPage,'Notificações de alvo','notifications')
 switch(settingsPage,'Avisar entradas e saídas','serverNotices')
 local foot=text(footer,'L · HUB     Q · CAM LOCK',UDim2.fromOffset(14,12),UDim2.fromOffset(250,18),10); foot.Font=Enum.Font.Gotham; foot.TextColor3=palette.muted
@@ -973,12 +960,6 @@ task.delay(3,endIntro)
 task.spawn(function()
     pcall(function() ContentProvider:PreloadAsync({splash}) end)
     if not alive or introDone then return end
-    if splash.IsLoaded and not state.reduceMotion then
-        TweenService:Create(splash,TweenInfo.new(0.18),{ImageTransparency=0}):Play()
-        task.wait(0.65)
-        if not alive or introDone then return end
-        TweenService:Create(splash,TweenInfo.new(0.16),{ImageTransparency=1}):Play(); task.wait(0.17)
-    end
     endIntro()
 end)
 return api

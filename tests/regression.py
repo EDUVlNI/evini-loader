@@ -184,7 +184,7 @@ press('L');advance(0.6)
 find('accent').Activated:Fire();assert(s.accent=='Cinza','accent change')
 local opacity=find('uiOpacity');opacity.Text='0.2';opacity.FocusLost:Fire();assert(find('StraightBody').BackgroundTransparency==0.2 and find('TopCurve').BackgroundTransparency==0.2,'opacity applies')
 local scale=find('uiSize');scale.Text='0.85';scale.FocusLost:Fire()
-find('reduceMotion').Activated:Fire();assert(s.reduceMotion,'reduced motion')
+s.reduceMotion=true
 find('Calibração avançada').Activated:Fire()
 s.espPlayers=true;s.espEntities=true;run.Heartbeat:Fire(0.4);frame(0.2)
 local names=0
@@ -212,6 +212,7 @@ for _,n in ipairs(nodes) do assert(n.Name~='Tab_PREDICT','no separate prediction
 
 -- Single panel, scale access and audio controls.
 assert(find('HubTitle').Text=='EVINI','center title')
+assert(find('BevanTitle') and not find('HubTitle').Visible,'native Bevan independent of executor')
 assert(find('UnifiedPanel').ClassName=='CanvasGroup','one animated panel')
 for _,name in ipairs({'Mira','Hitbox','Visual','Jogadores','Ajustes'}) do
  local scroll=find(name);local content=find(name..'Content')
@@ -222,9 +223,9 @@ end
 find('Tab_Jogadores').Activated:Fire()
 assert(find('Jogadores').Visible and not find('Mira').Visible,'tab changes scroll container')
 
-local oldScale=find('UserScale').Scale
-find('SmallerUI').Activated:Fire();assert(find('UserScale').Scale<oldScale,'shrink immediately')
-find('LargerUI').Activated:Fire();assert(math.abs(find('UserScale').Scale-oldScale)<0.001,'grow immediately')
+local oldScale=find('Hub').Size.X.Offset
+find('SmallerUI').Activated:Fire();assert(find('Hub').Size.X.Offset<oldScale,'shrink immediately')
+find('LargerUI').Activated:Fire();assert(math.abs(find('Hub').Size.X.Offset-oldScale)<0.001,'grow immediately')
 find('ResetUISize').Activated:Fire();assert(s.uiSize==1,'reset size')
 local sound=find('UIClick');local played=sound.playCount or 0
 find('Tab_Visual').Activated:Fire();assert(sound.playCount==played+1,'click plays shared sound')
