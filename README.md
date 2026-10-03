@@ -1,4 +1,4 @@
-# EVINI 3.5
+# EVINI 3.6
 
 Hub independente inspirado nas capturas das configurações do Da Hood: painel único translúcido, somente cantos superiores arredondados, base reta, título EV centralizado, abas horizontais, interruptores verdes e botão de fechar vermelho. Não carrega Nitrogen ou Azure.
 
@@ -63,3 +63,7 @@ Compilação e regressões simuladas passaram. A renderização real no Opiumwar
 ## Ajustes 3.5
 
 Aba selecionada mantém fundo mais claro, texto branco e brilho superior. Margem interna da rolagem reduzida de 20 para 9 pixels, preservando espaço próprio para a barra. Janela com proporção base 580 × 610 e medidas inteiras, largura mínima 420; textos e controles não encolhem junto com a janela. Ícones de fechar, minimizar e tamanho desenhados com linhas nativas. Testes simulados cobrem seleção da aba, margens, ícones e regressões anteriores; visual real ainda depende de conferência no Roblox.
+
+## Harmonização 3.6
+
+Título Bevan reduzido de 65% para 42% da largura, com máximo de 260 pixels para evitar corte no topo ao ampliar. Menor espaço entre cabeçalho, abas e conteúdo. Rodapé dividido proporcionalmente para impedir sobreposição entre atalhos e ping em janelas menores. Margem maior entre legendas e seletores. Compilação e regressões simuladas verificadas; renderização real não validada neste ambiente.

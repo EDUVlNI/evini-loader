@@ -1,4 +1,4 @@
-# Revisão EVINI 3.5
+# Revisão EVINI 3.6
 
 - Interface reorganizada em Mira, Visual, Jogadores e Ajustes; estilo inspirado nas capturas fornecidas, sem copiar imagens do jogo.
 - Filtro por nick único substituído por caixas de seleção persistentes por UserId, busca e seleção em lote. Restauração imediata ao desmarcar; validação do alvo também durante cam lock.
@@ -46,3 +46,7 @@ Compilação e regressões simuladas passaram. A renderização real no Opiumwar
 ## Ajustes 3.5
 
 Aba selecionada mantém fundo mais claro, texto branco e brilho superior. Margem interna da rolagem reduzida de 20 para 9 pixels, preservando espaço próprio para a barra. Janela com proporção base 580 × 610 e medidas inteiras, largura mínima 420; textos e controles não encolhem junto com a janela. Ícones de fechar, minimizar e tamanho desenhados com linhas nativas. Testes simulados cobrem seleção da aba, margens, ícones e regressões anteriores; visual real ainda depende de conferência no Roblox.
+
+## Harmonização 3.6
+
+Título Bevan reduzido de 65% para 42% da largura, com máximo de 260 pixels para evitar corte no topo ao ampliar. Menor espaço entre cabeçalho, abas e conteúdo. Rodapé dividido proporcionalmente para impedir sobreposição entre atalhos e ping em janelas menores. Margem maior entre legendas e seletores. Compilação e regressões simuladas verificadas; renderização real não validada neste ambiente.
