@@ -40,7 +40,12 @@ Instance={new=function(class)
  function n:FindFirstChild(name) return self.children[name] end
  function n:FindFirstChildOfClass(kind) for _,c in pairs(self.children) do if c:IsA(kind) then return c end end end
  function n:IsDescendantOf(p) local parent=self.Parent; while parent do if parent==p then return true end; parent=parent.Parent end; return false end
- function n:Destroy() self.Parent=nil; self.destroyed=true end
+ function n:Play() self.playCount=(self.playCount or 0)+1 end
+ function n:Destroy()
+  self.Parent=nil; self.destroyed=true
+  for _,value in pairs(self) do if type(value)=='table' and value.handlers then for _,c in ipairs(value.handlers) do c:Disconnect() end end end
+  for _,child in ipairs(nodes) do if child.Parent==self then child:Destroy() end end
+ end
  table.insert(nodes,n); return n
 end}
 workspace=Instance.new('Workspace'); workspace.Gravity=196.2; workspace.DescendantAdded=signal(); workspace.DescendantRemoving=signal()
@@ -154,7 +159,7 @@ run.Heartbeat:Fire(1.1);frame(0.1);assert(math.abs(workspace.CurrentCamera.CFram
 -- Appearance settings, collapsed panels, names-only ESP.
 press('L');advance(0.6)
 find('accent').Activated:Fire();assert(s.accent=='Cinza','accent change')
-local opacity=find('uiOpacity');opacity.Text='0.2';opacity.FocusLost:Fire();assert(find('Header').BackgroundTransparency==0.2,'opacity applies')
+local opacity=find('uiOpacity');opacity.Text='0.2';opacity.FocusLost:Fire();assert(find('StraightBody').BackgroundTransparency==0.2 and find('TopCurve').BackgroundTransparency==0.2,'opacity applies')
 local scale=find('uiSize');scale.Text='0.85';scale.FocusLost:Fire()
 find('reduceMotion').Activated:Fire();assert(s.reduceMotion,'reduced motion')
 find('Calibração avançada').Activated:Fire()
@@ -182,6 +187,18 @@ assert(files['evini-settings-1234.json'],'automatic file save')
 assert(find('Mira').Name=='Mira','combined page')
 for _,n in ipairs(nodes) do assert(n.Name~='Tab_PREDICT','no separate prediction tab') end
 
+-- Single panel, scale access and audio controls.
+assert(find('HubTitle').Text=='EV','center title')
+assert(find('UnifiedPanel').ClassName=='CanvasGroup','one animated panel')
+local oldScale=find('UserScale').Scale
+find('SmallerUI').Activated:Fire();assert(find('UserScale').Scale<oldScale,'shrink immediately')
+find('LargerUI').Activated:Fire();assert(math.abs(find('UserScale').Scale-oldScale)<0.001,'grow immediately')
+find('ResetUISize').Activated:Fire();assert(s.uiSize==1,'reset size')
+local sound=find('UIClick');local played=sound.playCount or 0
+find('Tab_Visual').Activated:Fire();assert(sound.playCount==played+1,'click plays shared sound')
+s.uiSounds=false;played=sound.playCount
+find('Tab_Mira').Activated:Fire();assert(sound.playCount==played,'muted buttons')
+s.uiSounds=true
 -- Player selection immediately restores excluded hitboxes and gates camera capture.
 find('DeselectAll').Activated:Fire()
 assert(enemy.Character.root.Size.X==2 and friend.Character.root.Size.X==2,'bulk restore')

@@ -1,6 +1,6 @@
-# EVINI 3.0
+# EVINI 3.1
 
-Hub independente inspirado nas capturas das configurações do Da Hood: abas horizontais, painéis escuros translúcidos, título destacado, interruptores verdes e botão de fechar vermelho. Não carrega Nitrogen ou Azure.
+Hub independente inspirado nas capturas das configurações do Da Hood: painel único translúcido, somente cantos superiores arredondados, base reta, título EV centralizado, abas horizontais, interruptores verdes e botão de fechar vermelho. Não carrega Nitrogen ou Azure.
 
 ```lua
 loadstring(game:HttpGet("https://raw.githubusercontent.com/EDUVlNI/evini-loader/main/main.lua"))()
@@ -27,3 +27,11 @@ A seleção é salva por UserId quando o executor permite arquivos locais. Ela a
 Compilação Luau e testes simulados de câmera, seleção individual/em lote, persistência, entrada/saída, limpeza de conexões, limite/expiração de avisos, reutilização do ESP e Aim Viewer sem arma. Testes reproduzíveis em `tests/regression.py`, com Python, lupa e luaparser. Não medimos FPS nem renderizamos a UI dentro do Roblox/Opiumware; aparência e desempenho reais precisam de validação no jogo.
 
 Referências técnicas: [BillboardGui](https://create.roblox.com/docs/reference/engine/classes/BillboardGui), [Beam](https://create.roblox.com/docs/reference/engine/classes/Beam), [Players](https://create.roblox.com/docs/reference/engine/classes/Players). A referência visual principal são os prints fornecidos pelo usuário.
+
+## Interface 3.1
+
+No topo, **− / porcentagem / +** ajustam a escala em passos de 5%; clicar na porcentagem restaura 100%. Em Ajustes há slider e campo numérico de 0,45 a 1,50. O tamanho efetivo é limitado ao espaço da tela e aparece no topo; a preferência é salva.
+
+Minimizar usa uma única transição curta de opacidade e escala, sem separar o painel em blocos. Sons dos botões podem ser desligados e têm controle de volume. Um único Sound local é reutilizado; a reprodução do arquivo interno depende do cliente Roblox.
+
+Os controles têm bordas retas, preenchimento em gradiente e feedback de clique. A área de rolagem ganhou margem direita para não cortar controles. O ajuste à tela só é recalculado quando a janela ou o tamanho escolhido mudam. Compilação e testes simulados passaram; fidelidade visual e som ainda requerem validação dentro do Roblox.

@@ -1,4 +1,4 @@
-# Revisão EVINI 3.0
+# Revisão EVINI 3.1
 
 - Interface reorganizada em Mira, Visual, Jogadores e Ajustes; estilo inspirado nas capturas fornecidas, sem copiar imagens do jogo.
 - Filtro por nick único substituído por caixas de seleção persistentes por UserId, busca e seleção em lote. Restauração imediata ao desmarcar; validação do alvo também durante cam lock.
@@ -12,3 +12,9 @@
 Luau compila. A suíte simulada cobre controles anteriores e cenários novos: exclusão restaura hitbox/solta câmera, busca mantém seleção, seleção por UserId sobrevive a arquivo, padrão de novas entradas, desconexão de linhas removidas, quatro avisos no máximo, expiração, efeitos sem arma, cor vermelha, alternância de visibilidade e ausência de novas alocações durante atualizações estáveis.
 
 Não foi feito teste visual, de FPS ou de acertos em sessão real do Da Hood. O código reduz trabalho manual do ESP, mas não é evidência de ganho medido no dispositivo do usuário.
+
+## Interface 3.1
+
+Substituídos quatro CanvasGroups por um CanvasGroup único; cabeçalho, abas, conteúdo e rodapé são regiões transparentes de um mesmo painel. A silhueta recorta a metade inferior do topo arredondado e continua em base reta, sem sobrepor preenchimentos translúcidos.
+
+Adicionados controles de escala no topo, slider com aplicação imediata, limite pelo viewport, porcentagem efetiva e reset. Som compartilhado com mute/volume. Testes cobrem reduzir/aumentar/restaurar escala, áudio ativado/desativado, inversão de animação e encerramento, além das regressões anteriores. Sem confirmação visual ou auditiva no jogo.

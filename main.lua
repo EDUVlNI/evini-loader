@@ -1,4 +1,4 @@
--- EVINI 3.0: fonte independente. Nao carrega o Nitrogen.
+-- EVINI 3.1: fonte independente. Nao carrega o Nitrogen.
 -- Alteracoes de hitbox sao locais; o servidor pode ignora-las.
 local Players = game:GetService('Players')
 local UIS = game:GetService('UserInputService')
@@ -18,7 +18,7 @@ state.camEnabled=false; state.camNPC=false; state.wallCheck=true; state.camTeam=
 state.fov=140; state.showFov=true; state.hitPart='Head'
 state.airEnabled=true; state.airPart='HumanoidRootPart'; state.prediction=0.12; state.airPrediction=0.12
 state.autoPrediction=false; state.autoPredMath=250; state.autoBase=0.04; state.smoothing=0.22
-state.accent='Branco';state.uiOpacity=0.18;state.uiSize=1;state.blurSize=5;state.reduceMotion=false;state.notifications=true
+state.uiSounds=true;state.soundVolume=0.2;state.accent='Branco';state.uiOpacity=0.18;state.uiSize=1;state.blurSize=5;state.reduceMotion=false;state.notifications=true
 state.camMarker=false;state.camTracer=false;state.hideVisuals=false
 state.aimViewer=false;state.aimEstimate=false;state.aimLength=120
 state.blur=true; state.hideKeyName='L'; state.camKeyName='Q'
@@ -29,7 +29,7 @@ local HttpService=game:GetService('HttpService')
 local settingsFile='evini-settings-'..tostring((game.GameId and game.GameId>0) and game.GameId or game.PlaceId or 0)..'.json'
 local defaults={}
 for k,v in pairs(state) do defaults[k]=v end
-local bounds={aimLength={10,500},uiOpacity={0,0.45},uiSize={0.65,1.3},blurSize={0,12},size={2,30},fov={30,500},prediction={0,0.5},airPrediction={0,0.5},autoPredMath={100,1000},autoBase={0,0.2},smoothing={0,1}}
+local bounds={aimLength={10,500},uiOpacity={0,0.45},soundVolume={0,0.6},uiSize={0.45,1.5},blurSize={0,12},size={2,30},fov={30,500},prediction={0,0.5},airPrediction={0,0.5},autoPredMath={100,1000},autoBase={0,0.2},smoothing={0,1}}
 local options={accent={Branco=true,Cinza=true},hitPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true},airPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true}}
 local persistenceStatus='Salvamento indisponível neste executor'
 local persistenceReport=function() end
@@ -99,11 +99,20 @@ local function round(obj, r) create('UICorner',{CornerRadius=UDim.new(0,r or 12)
 local function text(parent, value, pos, size, fontSize)
     return create('TextLabel',{Text=value,Position=pos,Size=size,BackgroundTransparency=1,TextColor3=Color3.fromRGB(235,235,235),Font=Enum.Font.Gotham,TextSize=fontSize or 14,TextXAlignment=Enum.TextXAlignment.Left,TextWrapped=true},parent)
 end
+local clickSound=create('Sound',{Name='UIClick',SoundId='rbxasset://sounds/electronicpingshort.wav',Volume=state.soundVolume,PlaybackSpeed=1.6},gui)
+local function playClick()
+    if not alive or not state.uiSounds then return end
+    clickSound.Volume=state.soundVolume
+    pcall(function() clickSound.TimePosition=0;clickSound:Play() end)
+end
 local function button(parent,value,pos,size,radius)
     local b = create('TextButton',{Text=value,Position=pos,Size=size,BackgroundColor3=Color3.fromRGB(24,24,24),TextColor3=Color3.fromRGB(200,200,200),BorderSizePixel=0,Font=Enum.Font.Gotham,TextSize=13},parent)
-    round(b,radius or 2)
+    round(b,radius or 1)
     create('UIGradient',{Rotation=90,Color=ColorSequence.new(Color3.new(1,1,1),Color3.fromRGB(175,175,175))},b)
     create('UIStroke',{Color=Color3.fromRGB(76,76,76),Thickness=1,ApplyStrokeMode=Enum.ApplyStrokeMode.Border},b)
+    -- Instance-owned event is released with the button, including roster rows.
+    b.Activated:Connect(playClick)
+    b.AutoButtonColor=true
     return b
 end
 local function restore(part)
@@ -445,27 +454,50 @@ local function render(dt)
     end
 end
 local palette={bg=Color3.fromRGB(14,14,14),panel=Color3.fromRGB(25,25,25),edge=Color3.fromRGB(59,59,59),muted=Color3.fromRGB(158,158,158),white=Color3.fromRGB(235,235,235)}
-local rootUI=create('Frame',{Name='Hub',AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.fromScale(0.5,0.5),Size=UDim2.fromOffset(620,546),BackgroundTransparency=1,Visible=false},gui)
-local uiScale=create('UIScale',{Scale=1},rootUI)
+local rootUI=create('Frame',{Name='Hub',AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.fromScale(0.5,0.5),Size=UDim2.fromOffset(620,650),BackgroundTransparency=1,Visible=false},gui)
+local uiScale=create('UIScale',{Name='UserScale',Scale=1},rootUI)
+local panel=create('CanvasGroup',{Name='UnifiedPanel',AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.fromScale(0.5,0.5),Size=UDim2.fromScale(1,1),BackgroundTransparency=1,GroupTransparency=1},rootUI)
+local motionScale=create('UIScale',{Name='MotionScale',Scale=0.94},panel)
+local fitReadout=function() end
 local function fitUI()
     local camera=Workspace.CurrentCamera
-    if camera then uiScale.Scale=math.min(state.uiSize,math.max(0.35,math.min((camera.ViewportSize.X-28)/620,(camera.ViewportSize.Y-60)/546))) end
+    if camera then
+        local available=math.min((camera.ViewportSize.X-28)/620,(camera.ViewportSize.Y-60)/650)
+        uiScale.Scale=math.max(0.1,math.min(state.uiSize,available))
+        fitReadout(uiScale.Scale)
+    end
 end
-local pieces={}
-local function piece(name,x,y,w,h,dx,dy)
-    local obj=create('CanvasGroup',{Name=name,Position=UDim2.fromOffset(x,y),Size=UDim2.fromOffset(w,h),BackgroundColor3=palette.bg,BorderSizePixel=0,GroupTransparency=0},rootUI)
-    round(obj,name=='Header' and 14 or 2); obj.BackgroundTransparency=state.uiOpacity;create('UIStroke',{Color=palette.edge,Thickness=1},obj)
-    table.insert(pieces,{obj=obj,home=UDim2.fromOffset(x,y),away=UDim2.fromOffset(x+dx,y+dy)})
-    return obj
+-- Clip the lower half of a rounded rectangle, then continue with a straight body.
+-- No overlapping translucent fills: only the two upper corners are rounded.
+local topClip=create('Frame',{Name='TopCurveClip',Size=UDim2.new(1,0,0,40),BackgroundTransparency=1,ClipsDescendants=true},panel)
+local topFill=create('Frame',{Name='TopCurve',Size=UDim2.new(1,0,0,80),BackgroundColor3=palette.bg,BackgroundTransparency=state.uiOpacity,BorderSizePixel=0},topClip)
+round(topFill,38);create('UIStroke',{Color=palette.edge,Thickness=1},topFill)
+local lowerFill=create('Frame',{Name='StraightBody',Position=UDim2.fromOffset(0,40),Size=UDim2.new(1,0,1,-40),BackgroundColor3=palette.bg,BackgroundTransparency=state.uiOpacity,BorderSizePixel=0},panel)
+for _,x in ipairs({0,1}) do create('Frame',{Position=UDim2.new(x,-x,0,40),Size=UDim2.new(0,1,1,-40),BackgroundColor3=palette.edge,BorderSizePixel=0},panel) end
+create('Frame',{Position=UDim2.new(0,0,1,-1),Size=UDim2.new(1,0,0,1),BackgroundColor3=palette.edge,BorderSizePixel=0},panel)
+local function region(name,x,y,w,h)
+    return create('Frame',{Name=name,Position=UDim2.fromOffset(x,y),Size=UDim2.fromOffset(w,h),BackgroundTransparency=1,BorderSizePixel=0},panel)
 end
-local header=piece('Header',0,0,620,70,0,-24)
-local sidebar=piece('Navigation',0,74,620,48,-30,0)
-local body=piece('Content',0,126,620,370,30,0)
-local footer=piece('Footer',0,504,620,42,0,22)
-local title=text(header,'EVINI',UDim2.fromOffset(18,3),UDim2.fromOffset(450,42),36); title.Font=Enum.Font.GothamBlack;title.TextStrokeTransparency=0;title.TextStrokeColor3=Color3.new(0,0,0)
-local sub=text(header,'v3.0 · #death · Cam lock, Hitbox e Visual',UDim2.fromOffset(20,48),UDim2.fromOffset(300,14),10); sub.Font=Enum.Font.Gotham; sub.TextColor3=palette.muted
-local hide=button(header,'−',UDim2.new(1,-74,0,15),UDim2.fromOffset(26,26)); hide.Name='Hide'
-local close=button(header,'×',UDim2.new(1,-40,0,15),UDim2.fromOffset(26,26)); close.Name='Close';close.BackgroundColor3=Color3.fromRGB(99,33,29)
+local header=region('Header',0,0,620,92)
+local sidebar=region('Navigation',10,94,600,46)
+local body=region('Content',10,142,600,462)
+local footer=region('Footer',10,610,600,34)
+local title=text(header,'EV',UDim2.fromOffset(100,0),UDim2.new(1,-200,0,84),64)
+title.Name='HubTitle';title.Font=Enum.Font.Arvo;title.TextXAlignment=Enum.TextXAlignment.Center;title.TextStrokeTransparency=0;title.TextStrokeColor3=Color3.new(0,0,0)
+create('UIStroke',{Color=Color3.new(0,0,0),Thickness=3},title)
+local hide=button(header,'−',UDim2.new(1,-90,0,28),UDim2.fromOffset(30,30));hide.Name='Hide';hide.TextSize=22
+local close=button(header,'×',UDim2.new(1,-52,0,28),UDim2.fromOffset(30,30));close.Name='Close';close.TextSize=22;close.BackgroundColor3=Color3.fromRGB(99,33,29)
+local smaller=button(header,'−',UDim2.fromOffset(22,30),UDim2.fromOffset(24,26));smaller.Name='SmallerUI'
+local scaleReadout=button(header,'100%',UDim2.fromOffset(50,30),UDim2.fromOffset(50,26));scaleReadout.Name='ResetUISize';scaleReadout.TextSize=11
+local larger=button(header,'+',UDim2.fromOffset(104,30),UDim2.fromOffset(24,26));larger.Name='LargerUI'
+fitReadout=function(scale) scaleReadout.Text=tostring(math.floor(scale*100+0.5))..'%' end
+local refreshSizeControls=function() end
+local function setUISize(value)
+    state.uiSize=math.clamp(value,0.45,1.5);fitUI();refreshSizeControls();queueSave()
+end
+connect(smaller.Activated,function() setUISize(uiScale.Scale-0.05) end)
+connect(larger.Activated,function() setUISize(uiScale.Scale+0.05) end)
+connect(scaleReadout.Activated,function() setUISize(1) end)
 local blur=create('BlurEffect',{Name='EVINI_Blur',Size=0},Lighting)
 local animationVersion=0
 local activeTweens={}
@@ -482,26 +514,20 @@ local function showUI(open,after)
     activeTweens={}; uiBusy=true; uiOpen=open; resetCamera()
     rootUI.Visible=true; fitUI()
     tween(blur,0.28,{Size=open and state.blur and state.blurSize or 0})
-    for i,item in ipairs(pieces) do
-        if open and item.obj.GroupTransparency>=0.99 then item.obj.Position=state.reduceMotion and item.home or item.away end
-        task.delay(state.reduceMotion and 0 or (open and i-1 or #pieces-i)*0.035,function()
-            if not alive or version~=animationVersion then return end
-            tween(item.obj,0.30,{Position=(open or state.reduceMotion) and item.home or item.away,GroupTransparency=open and 0 or 1})
-        end)
-    end
-    task.delay(state.reduceMotion and 0 or 0.43,function()
+    tween(panel,0.22,{GroupTransparency=open and 0 or 1,Position=open and UDim2.fromScale(0.5,0.5) or UDim2.new(0.5,0,0.5,14)})
+    tween(motionScale,0.22,{Scale=(open or state.reduceMotion) and 1 or 0.94})
+    task.delay(state.reduceMotion and 0 or 0.23,function()
         if not alive or version~=animationVersion then return end
-        uiBusy=false; rootUI.Visible=open
+        uiBusy=false;rootUI.Visible=open
         if after then after() end
     end)
 end
-for _,item in ipairs(pieces) do item.obj.GroupTransparency=1; item.obj.Position=item.away end
 local pages,tabs={},{}
 local currentPage='Mira'
 local function page(name,index)
-    local frame=create('ScrollingFrame',{Name=name,Position=UDim2.fromOffset(14,12),Size=UDim2.new(1,-28,1,-24),BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=3,ScrollBarImageColor3=green,CanvasSize=UDim2.fromOffset(0,0),Visible=index==1},body)
+    local frame=create('ScrollingFrame',{Name=name,Position=UDim2.fromOffset(14,12),Size=UDim2.new(1,-38,1,-24),BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=4,ScrollBarImageColor3=green,CanvasSize=UDim2.fromOffset(0,0),Visible=index==1},body)
     pages[name]={frame=frame,y=0};accent(frame,'ScrollBarImageColor3')
-    local b=button(sidebar,name,UDim2.fromOffset(10+(index-1)*150,8),UDim2.fromOffset(142,32)); b.Name='Tab_'..name; b.Font=Enum.Font.Gotham
+    local b=button(sidebar,name,UDim2.fromOffset(8+(index-1)*147,5),UDim2.fromOffset(140,34)); b.Name='Tab_'..name; b.Font=Enum.Font.Gotham
     tabs[name]=b
     connect(b.Activated,function()
         currentPage=name
@@ -557,6 +583,7 @@ local function field(p,value,key,min,max,step,onChange)
     local function set(v)
         if v and v==v then state[key]=math.floor(math.clamp(v,min,max)/step+0.5)*step end
         box.Text=string.format(step<1 and '%.3f' or '%.0f',state[key])
+        if key=='uiSize' then fitUI() end
         if onChange then onChange() end;queueSave()
     end
     connect(box.FocusLost,function() set(tonumber((box.Text:gsub(',','.')))) end)
@@ -777,7 +804,7 @@ arrangeFolds()
 local function refreshAppearance()
     green=accents[state.accent]
     for _,binding in ipairs(accentBindings) do if binding[1].Parent then binding[1][binding[2]]=green end end
-    for _,item in ipairs(pieces) do item.obj.BackgroundTransparency=state.uiOpacity end
+    topFill.BackgroundTransparency=state.uiOpacity;lowerFill.BackgroundTransparency=state.uiOpacity
     for _,refresh in pairs(controlRefresh) do refresh() end
     for name,b in pairs(tabs) do b.TextColor3=name==currentPage and green or palette.muted end
     fitUI();tween(blur,0.2,{Size=uiOpen and state.blur and state.blurSize or 0})
@@ -785,7 +812,12 @@ end
 label(settingsPage,'Aparência')
 choice(settingsPage,'Contraste','accent',{{'Branco','Branco'},{'Cinza','Cinza claro'}},refreshAppearance)
 field(settingsPage,'Transparência · 0–0,45','uiOpacity',0,0.45,0.01,refreshAppearance)
-field(settingsPage,'Tamanho da interface','uiSize',0.65,1.3,0.05,refreshAppearance)
+slider(settingsPage,'Tamanho da interface · 0,45–1,50','uiSize',0.45,1.5,0.05)
+local refreshSize=controlRefresh.uiSize
+controlRefresh.uiSize=function() refreshSize();fitUI() end
+refreshSizeControls=controlRefresh.uiSize
+switch(settingsPage,'Sons dos botões','uiSounds')
+slider(settingsPage,'Volume dos botões','soundVolume',0,0.6,0.05)
 field(settingsPage,'Intensidade do blur','blurSize',0,12,1,refreshAppearance)
 switch(settingsPage,'Reduzir animações','reduceMotion')
 switch(settingsPage,'Notificações de alvo','notifications')
@@ -878,10 +910,14 @@ connect(close.Activated,function()
     task.delay(0.6,function() if alive then api.Destroy() end end)
 end)
 local elapsed,collectElapsed,pingElapsed=0,0,0
+local lastViewport=nil
+fitUI()
 connect(RunService.Heartbeat,function(dt)
+    local cam=Workspace.CurrentCamera
+    if cam and cam.ViewportSize~=lastViewport then lastViewport=cam.ViewportSize;fitUI() end
     elapsed=elapsed+dt; collectElapsed=collectElapsed+dt; pingElapsed=pingElapsed+dt
     if elapsed>=0.1 then elapsed=0; apply() end
-    if collectElapsed>=0.3 then collectElapsed=0; collectCandidates(); fitUI() end
+    if collectElapsed>=0.3 then collectElapsed=0; collectCandidates() end
     if pingElapsed>=1 then
         pingElapsed=0
         local ok,value=pcall(function() return player:GetNetworkPing() end)
