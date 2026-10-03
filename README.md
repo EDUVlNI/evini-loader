@@ -1,4 +1,4 @@
-# EVINI 3.6
+# EVINI 3.7
 
 Hub independente inspirado nas capturas das configurações do Da Hood: painel único translúcido, somente cantos superiores arredondados, base reta, título EV centralizado, abas horizontais, interruptores verdes e botão de fechar vermelho. Não carrega Nitrogen ou Azure.
 
@@ -67,3 +67,7 @@ Aba selecionada mantém fundo mais claro, texto branco e brilho superior. Margem
 ## Harmonização 3.6
 
 Título Bevan reduzido de 65% para 42% da largura, com máximo de 260 pixels para evitar corte no topo ao ampliar. Menor espaço entre cabeçalho, abas e conteúdo. Rodapé dividido proporcionalmente para impedir sobreposição entre atalhos e ping em janelas menores. Margem maior entre legendas e seletores. Compilação e regressões simuladas verificadas; renderização real não validada neste ambiente.
+
+## Visual 3.7
+
+Fundo quase preto com transparência padrão 0,16 aplicada uma vez na migração; ajustes posteriores continuam salvos. Interruptores retangulares sem cantos arredondados, peça branca quadrada com borda escura e sombra discreta.

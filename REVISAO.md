@@ -1,4 +1,4 @@
-# Revisão EVINI 3.6
+# Revisão EVINI 3.7
 
 - Interface reorganizada em Mira, Visual, Jogadores e Ajustes; estilo inspirado nas capturas fornecidas, sem copiar imagens do jogo.
 - Filtro por nick único substituído por caixas de seleção persistentes por UserId, busca e seleção em lote. Restauração imediata ao desmarcar; validação do alvo também durante cam lock.
@@ -50,3 +50,7 @@ Aba selecionada mantém fundo mais claro, texto branco e brilho superior. Margem
 ## Harmonização 3.6
 
 Título Bevan reduzido de 65% para 42% da largura, com máximo de 260 pixels para evitar corte no topo ao ampliar. Menor espaço entre cabeçalho, abas e conteúdo. Rodapé dividido proporcionalmente para impedir sobreposição entre atalhos e ping em janelas menores. Margem maior entre legendas e seletores. Compilação e regressões simuladas verificadas; renderização real não validada neste ambiente.
+
+## Visual 3.7
+
+Fundo quase preto com transparência padrão 0,16 aplicada uma vez na migração; ajustes posteriores continuam salvos. Interruptores retangulares sem cantos arredondados, peça branca quadrada com borda escura e sombra discreta.

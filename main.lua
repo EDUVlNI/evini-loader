@@ -1,4 +1,4 @@
--- EVINI 3.6: fonte independente. Nao carrega o Nitrogen.
+-- EVINI 3.7: fonte independente. Nao carrega o Nitrogen.
 -- Alteracoes de hitbox sao locais; o servidor pode ignora-las.
 local Players = game:GetService('Players')
 local UIS = game:GetService('UserInputService')
@@ -17,7 +17,7 @@ state.camEnabled=false; state.camNPC=false; state.wallCheck=true; state.camTeam=
 state.fovTransparency=0.22;state.cycleParts=false;state.cycleInterval=0.8;state.fov=140; state.showFov=true; state.hitPart='Head'
 state.airEnabled=true; state.airPart='HumanoidRootPart'; state.prediction=0.12; state.airPrediction=0.12
 state.autoPrediction=false; state.autoPredMath=250; state.autoBase=0.04; state.smoothing=0.22
-state.smokeTheme=true;state.uiSounds=true;state.soundVolume=0.2;state.accent='Branco';state.uiOpacity=0.28;state.uiSize=1;state.reduceMotion=false;state.notifications=true
+state.deepBlackTheme=true;state.smokeTheme=true;state.uiSounds=true;state.soundVolume=0.2;state.accent='Branco';state.uiOpacity=0.16;state.uiSize=1;state.reduceMotion=false;state.notifications=true
 state.camMarker=false;state.camTracer=false;state.hideVisuals=false
 state.aimViewer=false;state.aimEstimate=false;state.aimLength=120
 state.hideKeyName='L'; state.camKeyName='Q'
@@ -38,7 +38,7 @@ local function loadSettings()
     persistenceStatus='Salvamento automático ativo'
     local ok,data=pcall(function() return HttpService:JSONDecode(readfile(settingsFile)) end)
     if not ok or type(data)~='table' or data.version~=1 or type(data.settings)~='table' then return end
-    if data.settings.smokeTheme~=true then data.settings.uiOpacity=0.28 end
+    if data.settings.deepBlackTheme~=true then data.settings.uiOpacity=0.16 end
     for key,default in pairs(defaults) do
         local value=data.settings[key]
         if type(value)==type(default) then
@@ -463,7 +463,7 @@ local function render(dt)
         cameraStatus(cameraTarget and cameraTarget.name or 'Sem alvo',pingSeconds,predictionTime(false))
     end
 end
-local palette={bg=Color3.fromRGB(8,8,8),panel=Color3.fromRGB(18,18,18),edge=Color3.fromRGB(78,78,78),muted=Color3.fromRGB(198,198,193),white=Color3.fromRGB(235,235,235)}
+local palette={bg=Color3.fromRGB(2,2,2),panel=Color3.fromRGB(10,10,10),edge=Color3.fromRGB(78,78,78),muted=Color3.fromRGB(198,198,193),white=Color3.fromRGB(235,235,235)}
 local rootUI=create('Frame',{Name='Hub',AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.fromScale(0.5,0.5),Size=UDim2.fromOffset(620,650),BackgroundTransparency=1,Visible=false},gui)
 local uiScale=create('UIScale',{Name='UserScale',Scale=1},rootUI)
 local panel=create('CanvasGroup',{Name='UnifiedPanel',AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.new(0.5,0,0.5,-22),Size=UDim2.new(1,0,1,44),BackgroundTransparency=1,GroupTransparency=1},rootUI)
@@ -603,11 +603,15 @@ local controlRefresh={}
 local function switch(p,value,key,onChange)
     local y=slot(p,42); rowText(p,value,y)
     local b=button(p.frame,'',UDim2.new(1,-56,0,y+8),UDim2.fromOffset(46,22)); b.Name=key
-    local dot=create('Frame',{Size=UDim2.fromOffset(14,14),BorderSizePixel=0},b); round(dot,2)
+    local corner=b:FindFirstChildOfClass('UICorner');if corner then corner:Destroy() end
+    local shadow=create('Frame',{Name='ToggleShadow',Size=UDim2.fromOffset(19,19),BackgroundColor3=Color3.new(0,0,0),BackgroundTransparency=0.2,BorderSizePixel=0},b)
+    local dot=create('Frame',{Name='ToggleKnob',Size=UDim2.fromOffset(16,16),BackgroundColor3=palette.white,BorderSizePixel=1,BorderColor3=Color3.fromRGB(50,50,50),ZIndex=2},b)
     local function refresh()
-        b.BackgroundColor3=state[key] and Color3.fromRGB(27,79,43) or palette.edge
+        b.BackgroundColor3=state[key] and Color3.fromRGB(24,72,37) or Color3.fromRGB(48,48,48)
         dot.BackgroundColor3=palette.white
-        dot.Position=UDim2.fromOffset(state[key] and 28 or 4,4)
+        local x=state[key] and 27 or 3
+        shadow.Position=UDim2.fromOffset(x-1,3)
+        dot.Position=UDim2.fromOffset(x,3)
     end
     connect(b.Activated,function() state[key]=not state[key]; refresh(); if onChange then onChange() end;queueSave() end)
     refresh();controlRefresh[key]=refresh; return b
