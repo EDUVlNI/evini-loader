@@ -1,4 +1,4 @@
--- EVINI 3.9: fonte independente. Nao carrega o Nitrogen.
+-- EVINI 4.0: fonte independente. Nao carrega o Nitrogen.
 -- Alteracoes de hitbox sao locais; o servidor pode ignora-las.
 local Players = game:GetService('Players')
 local UIS = game:GetService('UserInputService')
@@ -17,7 +17,7 @@ state.camEnabled=false; state.camNPC=false; state.wallCheck=true; state.camTeam=
 state.fovTransparency=0.22;state.cycleParts=false;state.cycleInterval=0.8;state.fov=140; state.showFov=true; state.hitPart='Head'
 state.airEnabled=true; state.airPart='HumanoidRootPart'; state.prediction=0.12; state.airPrediction=0.12
 state.autoPrediction=false; state.autoPredMath=250; state.autoBase=0.04; state.smoothing=0.22
-state.adjustableSmoke=true;state.uiDarkness=1;state.deepBlackTheme=true;state.smokeTheme=true;state.uiSounds=true;state.soundVolume=0.2;state.accent='Branco';state.uiOpacity=0.38;state.uiSize=1;state.reduceMotion=false;state.notifications=true
+state.extraDarkTheme=true;state.adjustableSmoke=true;state.uiDarkness=1;state.deepBlackTheme=true;state.smokeTheme=true;state.uiSounds=true;state.soundVolume=0.2;state.accent='Branco';state.uiOpacity=0.10;state.uiSize=1;state.reduceMotion=false;state.notifications=true
 state.camMarker=false;state.camTracer=false;state.hideVisuals=false
 state.aimViewer=false;state.aimEstimate=false;state.aimLength=120
 state.hideKeyName='L'; state.camKeyName='Q'
@@ -38,7 +38,7 @@ local function loadSettings()
     persistenceStatus='Salvamento automático ativo'
     local ok,data=pcall(function() return HttpService:JSONDecode(readfile(settingsFile)) end)
     if not ok or type(data)~='table' or data.version~=1 or type(data.settings)~='table' then return end
-    if data.settings.adjustableSmoke~=true then data.settings.uiOpacity=0.38 end
+    if data.settings.extraDarkTheme~=true then data.settings.uiOpacity=0.10;data.settings.uiDarkness=1 end
     for key,default in pairs(defaults) do
         local value=data.settings[key]
         if type(value)==type(default) then

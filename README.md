@@ -1,4 +1,4 @@
-# EVINI 3.9
+# EVINI 4.0
 
 Hub independente inspirado nas capturas das configurações do Da Hood: painel único translúcido, somente cantos superiores arredondados, base reta, título EV centralizado, abas horizontais, interruptores verdes e botão de fechar vermelho. Não carrega Nitrogen ou Azure.
 
@@ -79,3 +79,7 @@ Verde dos interruptores e caixas selecionadas amostrado do centro do print: RGB 
 ## Notificação 3.9
 
 Aviso de alvo movido para a região inferior direita, com 28 pixels de margem lateral e 110 pixels acima da base. Avisos de entrada/saída permanecem no alto à esquerda.
+
+## Fundo 4.0
+
+Fundo preto puro com transparência 0,10 (90% opaco). Aplicado uma vez ao atualizar; controles de transparência e escurecimento permanecem editáveis e salvos.
