@@ -1,4 +1,4 @@
--- EVINI 2.6: fonte independente. Nao carrega o Nitrogen.
+-- EVINI 3.0: fonte independente. Nao carrega o Nitrogen.
 -- Alteracoes de hitbox sao locais; o servidor pode ignora-las.
 local Players = game:GetService('Players')
 local UIS = game:GetService('UserInputService')
@@ -12,13 +12,13 @@ local player = Players.LocalPlayer
 assert(player, '[EVINI] Execute em um cliente com LocalPlayer.')
 local env = (type(getgenv) == 'function' and getgenv()) or _G
 if type(env.EVINI) == 'table' and type(env.EVINI.Destroy) == 'function' then pcall(env.EVINI.Destroy) end
-local state = {enabled=false, size=8, transparent=false, knockCheck=true, mode='all', query=''}
-state.espPlayers=false; state.espEntities=false
+local state = {enabled=false, size=8, transparent=false, knockCheck=true, playerSelection={}, newPlayersSelected=true}
+state.serverNotices=true; state.espPlayers=false; state.espEntities=false
 state.camEnabled=false; state.camNPC=false; state.wallCheck=true; state.camTeam=false
 state.fov=140; state.showFov=true; state.hitPart='Head'
 state.airEnabled=true; state.airPart='HumanoidRootPart'; state.prediction=0.12; state.airPrediction=0.12
 state.autoPrediction=false; state.autoPredMath=250; state.autoBase=0.04; state.smoothing=0.22
-state.accent='Branco';state.uiOpacity=0.06;state.uiSize=1;state.blurSize=5;state.reduceMotion=false;state.notifications=true
+state.accent='Branco';state.uiOpacity=0.18;state.uiSize=1;state.blurSize=5;state.reduceMotion=false;state.notifications=true
 state.camMarker=false;state.camTracer=false;state.hideVisuals=false
 state.aimViewer=false;state.aimEstimate=false;state.aimLength=120
 state.blur=true; state.hideKeyName='L'; state.camKeyName='Q'
@@ -30,7 +30,7 @@ local settingsFile='evini-settings-'..tostring((game.GameId and game.GameId>0) a
 local defaults={}
 for k,v in pairs(state) do defaults[k]=v end
 local bounds={aimLength={10,500},uiOpacity={0,0.45},uiSize={0.65,1.3},blurSize={0,12},size={2,30},fov={30,500},prediction={0,0.5},airPrediction={0,0.5},autoPredMath={100,1000},autoBase={0,0.2},smoothing={0,1}}
-local options={accent={Branco=true,Cinza=true},mode={all=true,exclude=true,only=true},hitPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true},airPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true}}
+local options={accent={Branco=true,Cinza=true},hitPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true},airPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true}}
 local persistenceStatus='Salvamento indisponível neste executor'
 local persistenceReport=function() end
 local canSave=type(writefile)=='function' and type(readfile)=='function'
@@ -45,7 +45,13 @@ local function loadSettings()
             if type(value)=='boolean' then state[key]=value
             elseif bounds[key] and value==value then state[key]=math.clamp(value,bounds[key][1],bounds[key][2])
             elseif options[key] and options[key][value] then state[key]=value
-            elseif key=='query' and #value<=100 then state[key]=value
+            elseif key=='playerSelection' then
+                local count=0
+                for id,enabled in pairs(value) do
+                    if type(id)=='string' and #id<=20 and id:match('^%d+$') and type(enabled)=='boolean' and count<500 then
+                        state.playerSelection[id]=enabled;count=count+1
+                    end
+                end
             elseif key=='hideKeyName' or key=='camKeyName' then
                 local valid,code=pcall(function() return Enum.KeyCode[value] end)
                 if valid and code and code~=Enum.KeyCode.Unknown and code~=Enum.KeyCode.Escape then state[key]=value end
@@ -72,6 +78,7 @@ local function queueSave()
 end
 
 local connections, originals = {}, {}
+local departing=setmetatable({}, {__mode='k'})
 local accents={Branco=Color3.fromRGB(238,238,238),Cinza=Color3.fromRGB(185,185,185)}
 local green=accents[state.accent]
 local accentBindings={}
@@ -90,11 +97,13 @@ local function connect(signal, fn)
 end
 local function round(obj, r) create('UICorner',{CornerRadius=UDim.new(0,r or 12)},obj) end
 local function text(parent, value, pos, size, fontSize)
-    return create('TextLabel',{Text=value,Position=pos,Size=size,BackgroundTransparency=1,TextColor3=Color3.fromRGB(235,235,235),Font=Enum.Font.BuilderSans,TextSize=fontSize or 14,TextXAlignment=Enum.TextXAlignment.Left,TextWrapped=true},parent)
+    return create('TextLabel',{Text=value,Position=pos,Size=size,BackgroundTransparency=1,TextColor3=Color3.fromRGB(235,235,235),Font=Enum.Font.Gotham,TextSize=fontSize or 14,TextXAlignment=Enum.TextXAlignment.Left,TextWrapped=true},parent)
 end
 local function button(parent,value,pos,size,radius)
-    local b = create('TextButton',{Text=value,Position=pos,Size=size,BackgroundColor3=Color3.fromRGB(24,24,24),TextColor3=Color3.fromRGB(200,200,200),BorderSizePixel=0,Font=Enum.Font.BuilderSans,TextSize=13},parent)
+    local b = create('TextButton',{Text=value,Position=pos,Size=size,BackgroundColor3=Color3.fromRGB(24,24,24),TextColor3=Color3.fromRGB(200,200,200),BorderSizePixel=0,Font=Enum.Font.Gotham,TextSize=13},parent)
     round(b,radius or 2)
+    create('UIGradient',{Rotation=90,Color=ColorSequence.new(Color3.new(1,1,1),Color3.fromRGB(175,175,175))},b)
+    create('UIStroke',{Color=Color3.fromRGB(76,76,76),Thickness=1,ApplyStrokeMode=Enum.ApplyStrokeMode.Border},b)
     return b
 end
 local function restore(part)
@@ -111,25 +120,10 @@ local function restoreAll()
     for part in pairs(originals) do table.insert(parts,part) end
     for _,part in ipairs(parts) do restore(part) end
 end
-local reportTarget=function() end
-local function resolveTarget()
-    local query=state.query:lower()
-    if query=='' then return nil,'Digite o nick e pressione Enter.' end
-    for _,target in ipairs(Players:GetPlayers()) do
-        if target.Name:lower()==query then
-            if target==player then return nil,'Escolha outro jogador.' end
-            return target
-        end
-    end
-    local found=nil
-    for _,target in ipairs(Players:GetPlayers()) do
-        if target~=player and target.DisplayName:lower()==query then
-            if found then return nil,'Nome repetido. Use o @usuario exato.' end
-            found=target
-        end
-    end
-    if found then return found end
-    return nil,'Jogador não encontrado neste servidor.'
+local function selectedPlayer(target)
+    local value=state.playerSelection[tostring(target.UserId)]
+    if value==nil then return state.newPlayersSelected end
+    return value
 end
 -- Da Hood pode marcar K.O mesmo quando o Humanoid ainda tem vida.
 local function flagOn(parent,name)
@@ -144,13 +138,11 @@ local function unavailable(character,humanoid)
     return state.knockCheck and flagOn(effects,'K.O')
 end
 local function apply()
-    local selected,message=resolveTarget()
-    reportTarget(selected,message)
     if closing or not state.enabled then restoreAll(); return end
     local active={}
     for _,target in ipairs(Players:GetPlayers()) do
-        local eligible=state.mode=='all' or (state.mode=='exclude' and target~=selected) or (state.mode=='only' and target==selected)
-        if target~=player and eligible then
+        local eligible=selectedPlayer(target)
+        if target~=player and not departing[target] and eligible then
             local character=target.Character
             local humanoid=character and character:FindFirstChildOfClass('Humanoid')
             local part=character and character:FindFirstChild('HumanoidRootPart')
@@ -203,7 +195,7 @@ local function collectCandidates()
         local model=p.Character
         if model then
             seen[model]=true
-            if p~=player then table.insert(list,{model=model,player=p,name=p.DisplayName..' (@'..p.Name..')'}) end
+            if p~=player and not departing[p] then table.insert(list,{model=model,player=p,name=p.DisplayName..' (@'..p.Name..')'}) end
         end
     end
     for model in pairs(npcModels) do
@@ -222,16 +214,16 @@ local function targetPart(model,name)
     return found and found:IsA('BasePart') and found or nil
 end
 local function targetInfo(entry)
+    if entry.player and departing[entry.player] then return nil end
     if not entry.model.Parent then return nil end
     local hum=entry.model:FindFirstChildOfClass('Humanoid')
     if not hum or unavailable(entry.model,hum) then return nil end
     local part=targetPart(entry.model,'HumanoidRootPart')
     return part,hum
 end
-local function filterCamera(entry,selected)
-    if not entry.player then return state.camNPC and state.mode~='only' end
-    if state.mode=='exclude' and entry.player==selected then return false end
-    if state.mode=='only' and entry.player~=selected then return false end
+local function filterCamera(entry)
+    if not entry.player then return state.camNPC end
+    if not selectedPlayer(entry.player) then return false end
     if state.camTeam and not player.Neutral and not entry.player.Neutral and player.Team and player.Team==entry.player.Team then return false end
     return true
 end
@@ -248,11 +240,10 @@ local function visibleToCamera(entry,part,camera)
     return not hit or hit.Instance:IsDescendantOf(entry.model)
 end
 local function acquire(camera,mouse,radius)
-    local selected=resolveTarget()
     local best,distance=nil,radius or state.fov
     for _,entry in ipairs(candidates) do
         local root,hum=targetInfo(entry)
-        if root and filterCamera(entry,selected) then
+        if root and filterCamera(entry) then
             local part=aimPart(entry,hum)
             if part then
                 local point,onScreen=camera:WorldToViewportPoint(part.Position)
@@ -286,30 +277,34 @@ end
 local function ensureESP(entry)
     local item=espObjects[entry.model]
     if item then return item end
-    local frame=create('Frame',{Name='ESPName',BackgroundTransparency=1,Size=UDim2.fromOffset(220,22),Visible=false},overlays)
-    local label=text(frame,'',UDim2.fromOffset(0,0),UDim2.fromScale(1,1),13)
-    label.Font=Enum.Font.BuilderSansMedium;label.TextXAlignment=Enum.TextXAlignment.Center;label.TextStrokeTransparency=0.35
-    item={frame=frame,label=label};espObjects[entry.model]=item
+    local frame=create('BillboardGui',{Name='ESPName',Size=UDim2.fromOffset(220,24),StudsOffsetWorldSpace=Vector3.new(0,2,0),AlwaysOnTop=true,MaxDistance=1200,Enabled=false},gui)
+    local name=text(frame,entry.player and entry.player.DisplayName or entry.model.Name,UDim2.fromOffset(0,0),UDim2.fromScale(1,1),13)
+    name.Font=Enum.Font.GothamMedium;name.TextXAlignment=Enum.TextXAlignment.Center;name.TextStrokeTransparency=0.3
+    item={frame=frame,label=name};espObjects[entry.model]=item
     return item
 end
-local function updateESP(camera)
+local function updateESP()
     local seen={}
-    for _,entry in ipairs(candidates) do
-        local wanted=not state.hideVisuals and (entry.player and state.espPlayers or (not entry.player and state.espEntities))
-        local root,hum=targetInfo(entry)
-        if wanted and root then
-            local item=ensureESP(entry);seen[entry.model]=true
-            local head=targetPart(entry.model,'Head') or root
-            local point,onScreen=camera:WorldToViewportPoint(head.Position+Vector3.new(0,1,0))
-            item.frame.Visible=onScreen and point.Z>0
-            item.frame.Position=UDim2.fromOffset(point.X-110,point.Y-24)
-            item.label.Text=entry.player and entry.player.DisplayName or entry.model.Name
-            item.label.TextColor3=entry.player and green or Color3.fromRGB(185,185,185)
+    if not state.hideVisuals and (state.espPlayers or state.espEntities) then
+        for _,entry in ipairs(candidates) do
+            local wanted=entry.player and state.espPlayers or (not entry.player and state.espEntities)
+            if wanted then
+                local root=targetInfo(entry)
+                if root then
+                    local item=ensureESP(entry)
+                    local head=targetPart(entry.model,'Head') or root
+                    if item.frame.Adornee~=head then item.frame.Adornee=head end
+                    if not item.frame.Enabled then item.frame.Enabled=true end
+                    if item.label.TextColor3~=green then item.label.TextColor3=green end
+                    seen[entry.model]=true
+                end
+            end
         end
     end
-    local stale={}
-    for model in pairs(espObjects) do if not seen[model] then table.insert(stale,model) end end
-    for _,model in ipairs(stale) do destroyESP(model) end
+    for model,item in pairs(espObjects) do
+        if not model.Parent then destroyESP(model)
+        elseif not seen[model] and item.frame.Enabled then item.frame.Enabled=false end
+    end
 end
 local camBind=Enum.KeyCode[state.camKeyName]
 local capturing=nil
@@ -347,49 +342,69 @@ local function updateCameraVisuals(camera)
 end
 local aimItems={}
 local aimReport=function() end
-local function updateAimViewer(camera)
-    local seen,exact,estimated={ },0,0
+local aimFolder=create('Folder',{Name='EVINI_AimEffects'},Workspace)
+local aimRed=Color3.fromRGB(255,48,48)
+local function destroyAim(model)
+    local item=aimItems[model]
+    if not item then return end
+    item.start:Destroy();item.finish:Destroy();item.beam:Destroy();item.label:Destroy()
+    aimItems[model]=nil
+end
+local function ensureAim(entry)
+    local item=aimItems[entry.model]
+    if item then return item end
+    local props={Anchored=true,CanCollide=false,CanTouch=false,CanQuery=false,CastShadow=false,Transparency=1,Size=Vector3.new(0.08,0.08,0.08)}
+    local start=create('Part',props,aimFolder);start.Name='AimStart'
+    local finish=create('Part',props,aimFolder);finish.Name='AimPoint';finish.Color=aimRed;finish.Material=Enum.Material.Neon;finish.Shape=Enum.PartType.Ball;finish.Size=Vector3.new(0.18,0.18,0.18)
+    local a=create('Attachment',{},start);local b=create('Attachment',{},finish)
+    local beam=create('Beam',{Name='AimRay',Attachment0=a,Attachment1=b,Color=ColorSequence.new(aimRed),Transparency=NumberSequence.new(0.15),Width0=0.035,Width1=0.025,FaceCamera=true,LightEmission=1,LightInfluence=0,Segments=1,Enabled=false},aimFolder)
+    local tag=create('BillboardGui',{Name='AimViewerLabel',Adornee=finish,Size=UDim2.fromOffset(210,22),StudsOffsetWorldSpace=Vector3.new(0,0.35,0),AlwaysOnTop=true,Enabled=false},gui)
+    local caption=text(tag,'',UDim2.fromScale(0,0),UDim2.fromScale(1,1),11);caption.TextColor3=aimRed;caption.TextStrokeTransparency=0.2;caption.TextXAlignment=Enum.TextXAlignment.Center
+    item={start=start,finish=finish,beam=beam,label=tag,caption=caption};aimItems[entry.model]=item
+    return item
+end
+local function updateAimViewer()
+    local exact,estimated=0,0
+    local seen={}
     if state.aimViewer and not state.hideVisuals then
         for _,entry in ipairs(candidates) do
-            local root,hum=targetInfo(entry)
-            if entry.player and root then
-                local tool=entry.model:FindFirstChildOfClass('Tool')
-                local handle=tool and tool:FindFirstChild('Handle')
-                local effects=entry.model:FindFirstChild('BodyEffects')
-                local value=effects and effects:FindFirstChild('MousePos')
-                local origin=handle and handle:IsA('BasePart') and handle or targetPart(entry.model,'Head')
-                local destination,approx=nil,false
-                if origin and value and value:IsA('Vector3Value') then destination=value.Value
-                elseif origin and state.aimEstimate and handle then destination=origin.Position+origin.CFrame.LookVector*state.aimLength;approx=true end
-                if origin and destination and typeof(destination)=='Vector3' then
-                    local direction=destination-origin.Position
-                    if direction.Magnitude>0.01 then
-                        local endpoint=origin.Position+direction.Unit*math.min(direction.Magnitude,state.aimLength)
-                        local a,aOn=camera:WorldToViewportPoint(origin.Position)
-                        local b,bOn=camera:WorldToViewportPoint(endpoint)
-                        local item=aimItems[entry.model]
-                        if not item then
-                            item={line=screenLine('AimViewerLine'),label=text(overlays,'',UDim2.fromOffset(0,0),UDim2.fromOffset(200,20),11)}
-                            item.label.Name='AimViewerLabel';item.label.TextStrokeTransparency=0.35;aimItems[entry.model]=item
-                        end
-                        seen[entry.model]=true;item.line.Visible=false;item.label.Visible=false
-                        if approx then estimated=estimated+1 else exact=exact+1 end
-                        if aOn and bOn and a.Z>0 and b.Z>0 then
-                            drawLine(item.line,Vector2.new(a.X,a.Y),Vector2.new(b.X,b.Y))
-                            item.line.BackgroundColor3=approx and Color3.fromRGB(150,150,150) or green
-                            item.label.Position=UDim2.fromOffset(b.X+5,b.Y);item.label.Text=entry.player.DisplayName..(approx and ' · estimativa' or ' · replicada');item.label.Visible=true
+            if entry.player then
+                local root=targetInfo(entry)
+                if root then
+                    local head=targetPart(entry.model,'Head') or root
+                    local tool=entry.model:FindFirstChildOfClass('Tool')
+                    local handle=tool and tool:FindFirstChild('Handle')
+                    local origin=handle and handle:IsA('BasePart') and handle or head
+                    local effects=entry.model:FindFirstChild('BodyEffects')
+                    local value=effects and effects:FindFirstChild('MousePos')
+                    local destination,approx=nil,false
+                    if value and value:IsA('Vector3Value') then destination=value.Value
+                    elseif state.aimEstimate then destination=origin.Position+origin.CFrame.LookVector*state.aimLength;approx=true end
+                    if destination and typeof(destination)=='Vector3' then
+                        local delta=destination-origin.Position
+                        local length=delta.Magnitude
+                        if length==length and length>0.01 and length<1e7 then
+                            local item=ensureAim(entry)
+                            seen[entry.model]=true
+                            item.start.Position=origin.Position
+                            item.finish.Position=origin.Position+delta.Unit*math.min(length,state.aimLength)
+                            item.beam.Enabled=true;item.finish.Transparency=0;item.label.Enabled=true
+                            item.caption.Text='@'..entry.player.Name..(approx and ' · direção estimada' or ' · mira replicada')
+                            if approx then estimated=estimated+1 else exact=exact+1 end
                         end
                     end
                 end
             end
         end
     end
-    local stale={};for model in pairs(aimItems) do if not seen[model] then table.insert(stale,model) end end
-    for _,model in ipairs(stale) do local item=aimItems[model];item.line:Destroy();item.label:Destroy();aimItems[model]=nil end
+    for model,item in pairs(aimItems) do
+        if not model.Parent then destroyAim(model)
+        elseif not seen[model] then item.beam.Enabled=false;item.finish.Transparency=1;item.label.Enabled=false end
+    end
     aimReport(exact,estimated)
 end
 
-local espElapsed,statusElapsed=0,0
+local espElapsed,aimElapsed,statusElapsed=0,0,0
 local function render(dt)
     local camera=Workspace.CurrentCamera
     if not camera then return end
@@ -398,7 +413,9 @@ local function render(dt)
     ring.Size=UDim2.fromOffset(state.fov*2,state.fov*2)
     ring.Visible=not state.hideVisuals and state.camEnabled and state.showFov and not uiOpen and not uiBusy
     espElapsed=espElapsed+dt; statusElapsed=statusElapsed+dt
-    if espElapsed>=0.05 then espElapsed=0; updateESP(camera);updateAimViewer(camera) end
+    if espElapsed>=0.15 then espElapsed=0;updateESP() end
+    aimElapsed=aimElapsed+dt
+    if aimElapsed>=1/30 then aimElapsed=0;updateAimViewer() end
     if cameraActive() then
         -- FOV somente na captura por tecla. Nunca adquirir outro alvo por frame.
         local entry=cameraTarget
@@ -407,7 +424,7 @@ local function render(dt)
             local part=hum and aimPart(entry,hum)
             local point,onScreen
             if part then point,onScreen=camera:WorldToViewportPoint(part.Position) end
-            if not root or not part or not filterCamera(entry,resolveTarget()) or not onScreen or point.Z<=0
+            if not root or not part or not filterCamera(entry) or not onScreen or point.Z<=0
                 or not visibleToCamera(entry,part,camera) then entry=nil end
         end
         if not entry then resetCamera() else cameraTarget=entry end
@@ -437,18 +454,18 @@ end
 local pieces={}
 local function piece(name,x,y,w,h,dx,dy)
     local obj=create('CanvasGroup',{Name=name,Position=UDim2.fromOffset(x,y),Size=UDim2.fromOffset(w,h),BackgroundColor3=palette.bg,BorderSizePixel=0,GroupTransparency=0},rootUI)
-    round(obj,7); obj.BackgroundTransparency=state.uiOpacity;create('UIStroke',{Color=palette.edge,Thickness=1},obj)
+    round(obj,name=='Header' and 14 or 2); obj.BackgroundTransparency=state.uiOpacity;create('UIStroke',{Color=palette.edge,Thickness=1},obj)
     table.insert(pieces,{obj=obj,home=UDim2.fromOffset(x,y),away=UDim2.fromOffset(x+dx,y+dy)})
     return obj
 end
-local header=piece('Header',0,0,620,58,0,-24)
-local sidebar=piece('Navigation',0,66,138,430,-30,0)
-local body=piece('Content',146,66,474,430,30,0)
+local header=piece('Header',0,0,620,70,0,-24)
+local sidebar=piece('Navigation',0,74,620,48,-30,0)
+local body=piece('Content',0,126,620,370,30,0)
 local footer=piece('Footer',0,504,620,42,0,22)
-local title=text(header,'EVINI',UDim2.fromOffset(18,10),UDim2.fromOffset(175,23),21); title.Font=Enum.Font.BuilderSansBold;accent(title,'TextColor3')
-local sub=text(header,'v2.6 · #death · Cam lock, Hitbox e Visual',UDim2.fromOffset(19,34),UDim2.fromOffset(300,14),10); sub.Font=Enum.Font.BuilderSans; sub.TextColor3=palette.muted
+local title=text(header,'EVINI',UDim2.fromOffset(18,3),UDim2.fromOffset(450,42),36); title.Font=Enum.Font.GothamBlack;title.TextStrokeTransparency=0;title.TextStrokeColor3=Color3.new(0,0,0)
+local sub=text(header,'v3.0 · #death · Cam lock, Hitbox e Visual',UDim2.fromOffset(20,48),UDim2.fromOffset(300,14),10); sub.Font=Enum.Font.Gotham; sub.TextColor3=palette.muted
 local hide=button(header,'−',UDim2.new(1,-74,0,15),UDim2.fromOffset(26,26)); hide.Name='Hide'
-local close=button(header,'×',UDim2.new(1,-40,0,15),UDim2.fromOffset(26,26)); close.Name='Close'
+local close=button(header,'×',UDim2.new(1,-40,0,15),UDim2.fromOffset(26,26)); close.Name='Close';close.BackgroundColor3=Color3.fromRGB(99,33,29)
 local blur=create('BlurEffect',{Name='EVINI_Blur',Size=0},Lighting)
 local animationVersion=0
 local activeTweens={}
@@ -484,7 +501,7 @@ local currentPage='Mira'
 local function page(name,index)
     local frame=create('ScrollingFrame',{Name=name,Position=UDim2.fromOffset(14,12),Size=UDim2.new(1,-28,1,-24),BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=3,ScrollBarImageColor3=green,CanvasSize=UDim2.fromOffset(0,0),Visible=index==1},body)
     pages[name]={frame=frame,y=0};accent(frame,'ScrollBarImageColor3')
-    local b=button(sidebar,name,UDim2.fromOffset(10,14+(index-1)*42),UDim2.new(1,-20,0,32)); b.Name='Tab_'..name; b.Font=Enum.Font.BuilderSans
+    local b=button(sidebar,name,UDim2.fromOffset(10+(index-1)*150,8),UDim2.fromOffset(142,32)); b.Name='Tab_'..name; b.Font=Enum.Font.Gotham
     tabs[name]=b
     connect(b.Activated,function()
         currentPage=name
@@ -503,21 +520,22 @@ local function page(name,index)
 end
 local camPage=page('Mira',1)
 local espPage=page('Visual',2)
-local settingsPage=page('Ajustes',3)
+local playersPage=page('Jogadores',3)
+local settingsPage=page('Ajustes',4)
 local function subPage() return {frame=create('Frame',{BackgroundTransparency=1,Visible=false,Size=UDim2.new(1,0,0,0)},camPage.frame),y=0} end
 local hitPage=subPage()
 local predPage=subPage()
-local branding=text(sidebar,'# DEATH\n8440749',UDim2.new(0,13,1,-48),UDim2.new(1,-26,0,36),10); branding.Font=Enum.Font.BuilderSans; branding.TextColor3=palette.muted
 local function slot(p,h)
     local y=p.y; p.y=y+h; if p.frame:IsA('ScrollingFrame') then p.frame.CanvasSize=UDim2.fromOffset(0,p.y+8) else p.frame.Size=UDim2.new(1,0,0,p.y+8) end; return y
 end
 local function label(p,value,description)
     local y=slot(p,description and 57 or 32)
-    local t=text(p.frame,value,UDim2.fromOffset(0,y),UDim2.new(1,0,0,20),15); t.Font=Enum.Font.BuilderSans; accent(t,'TextColor3')
-    if description then local d=text(p.frame,description,UDim2.fromOffset(0,y+23),UDim2.new(1,-4,0,30),11); d.Font=Enum.Font.BuilderSans; d.TextColor3=palette.muted end
+    local t=text(p.frame,value,UDim2.fromOffset(0,y),UDim2.new(1,0,0,20),15); t.Font=Enum.Font.Gotham; accent(t,'TextColor3')
+    if description then local d=text(p.frame,description,UDim2.fromOffset(0,y+23),UDim2.new(1,-4,0,30),11); d.Font=Enum.Font.Gotham; d.TextColor3=palette.muted end
 end
 local function rowText(p,value,y)
-    local t=text(p.frame,value,UDim2.fromOffset(0,y+5),UDim2.new(1,-132,0,24),13); t.Font=Enum.Font.BuilderSans; return t
+    local backdrop=create('Frame',{Position=UDim2.fromOffset(0,y),Size=UDim2.new(1,0,0,38),BackgroundColor3=palette.panel,BackgroundTransparency=0.45,BorderSizePixel=1,BorderColor3=Color3.fromRGB(5,5,5)},p.frame)
+    local t=text(p.frame,value,UDim2.fromOffset(10,y+5),UDim2.new(1,-132,0,24),13); t.Font=Enum.Font.Gotham; return t
 end
 local controlRefresh={}
 local function switch(p,value,key,onChange)
@@ -525,8 +543,8 @@ local function switch(p,value,key,onChange)
     local b=button(p.frame,'',UDim2.new(1,-46,0,y+6),UDim2.fromOffset(46,22)); b.Name=key
     local dot=create('Frame',{Size=UDim2.fromOffset(14,14),BorderSizePixel=0},b); round(dot,2)
     local function refresh()
-        b.BackgroundColor3=state[key] and green or palette.edge
-        dot.BackgroundColor3=state[key] and palette.bg or palette.muted
+        b.BackgroundColor3=state[key] and Color3.fromRGB(27,79,43) or palette.edge
+        dot.BackgroundColor3=palette.white
         dot.Position=UDim2.fromOffset(state[key] and 28 or 4,4)
     end
     connect(b.Activated,function() state[key]=not state[key]; refresh(); if onChange then onChange() end;queueSave() end)
@@ -534,7 +552,7 @@ local function switch(p,value,key,onChange)
 end
 local function field(p,value,key,min,max,step,onChange)
     local y=slot(p,46); rowText(p,value,y)
-    local box=create('TextBox',{Name=key=='size' and 'SizeInput' or key,Position=UDim2.new(1,-106,0,y),Size=UDim2.fromOffset(106,32),BackgroundColor3=palette.panel,BorderSizePixel=0,Text=tostring(state[key]),TextColor3=palette.white,ClearTextOnFocus=false,Font=Enum.Font.BuilderSans,TextSize=13},p.frame)
+    local box=create('TextBox',{Name=key=='size' and 'SizeInput' or key,Position=UDim2.new(1,-106,0,y),Size=UDim2.fromOffset(106,32),BackgroundColor3=palette.panel,BorderSizePixel=0,Text=tostring(state[key]),TextColor3=palette.white,ClearTextOnFocus=false,Font=Enum.Font.Gotham,TextSize=13},p.frame)
     round(box,3); create('UIStroke',{Color=palette.edge,Thickness=1,ApplyStrokeMode=Enum.ApplyStrokeMode.Border},box)
     local function set(v)
         if v and v==v then state[key]=math.floor(math.clamp(v,min,max)/step+0.5)*step end
@@ -569,7 +587,7 @@ local function slider(p,value,key,min,max,step)
 end
 local function choice(p,value,key,options,onChange)
     local y=slot(p,46); local caption=rowText(p,value,y); caption.Size=UDim2.new(1,-166,0,24)
-    local b=button(p.frame,'',UDim2.new(1,-154,0,y),UDim2.fromOffset(154,32)); b.Name=key; b.Font=Enum.Font.BuilderSans; b.TextSize=11
+    local b=button(p.frame,'',UDim2.new(1,-154,0,y),UDim2.fromOffset(154,32)); b.Name=key; b.Font=Enum.Font.Gotham; b.TextSize=11
     local function refresh()
         for _,o in ipairs(options) do if o[1]==state[key] then b.Text=o[2]..'  >' end end
     end
@@ -579,26 +597,103 @@ local function choice(p,value,key,options,onChange)
     end)
     refresh(); return b
 end
-label(hitPage,'HITBOX','Controles locais. Os filtros por nick também valem para o cam lock de jogadores.')
+label(hitPage,'HITBOX','Escolha quem pode ser alvo na aba Jogadores. A mesma seleção vale para hitbox e cam lock.')
 switch(hitPage,'Ativar expansão','enabled',apply)
 switch(hitPage,'Box invisível','transparent',apply)
 switch(hitPage,'Knock Check','knockCheck',function() apply(); cameraTarget=nil end)
 field(hitPage,'Tamanho · 2–30 studs','size',2,30,0.1,apply)
-choice(hitPage,'Filtro de jogadores','mode',{{'all','Todos'},{'exclude','Ignorar nick'},{'only','Só este nick'}},function() apply(); cameraTarget=nil end)
-local nickY=slot(hitPage,42)
-local nick=create('TextBox',{Name='NickInput',Position=UDim2.fromOffset(0,nickY),Size=UDim2.new(1,0,0,32),BackgroundColor3=palette.panel,TextColor3=palette.white,BorderSizePixel=0,PlaceholderText='@usuario ou nome de exibição exato',PlaceholderColor3=palette.muted,Text=state.query,ClearTextOnFocus=false,Font=Enum.Font.BuilderSans,TextSize=13},hitPage.frame); round(nick,3)
-local result=text(hitPage.frame,'',UDim2.fromOffset(0,slot(hitPage,36)),UDim2.new(1,0,0,32),11); result.Font=Enum.Font.BuilderSans; result.TextColor3=palette.muted
-reportTarget=function(target,message)
-    result.Text=state.mode=='all' and 'Todos os outros jogadores.' or (target and ((state.mode=='exclude' and 'Normal para @' or 'Somente @')..target.Name) or message)
+label(playersPage,'JOGADORES','✓ permite hitbox e cam lock. Desmarque para proteger a pessoa. A seleção fica salva pelo usuário.')
+switch(playersPage,'Selecionar novos jogadores','newPlayersSelected')
+local actionsY=slot(playersPage,44)
+local selectAll=button(playersPage.frame,'Marcar todos',UDim2.fromOffset(0,actionsY),UDim2.new(0.5,-5,0,32));selectAll.Name='SelectAll'
+local deselectAll=button(playersPage.frame,'Desmarcar todos',UDim2.new(0.5,5,0,actionsY),UDim2.new(0.5,-5,0,32));deselectAll.Name='DeselectAll'
+local searchY=slot(playersPage,44)
+local rosterSearch=create('TextBox',{Name='PlayerSearch',Position=UDim2.fromOffset(0,searchY),Size=UDim2.new(1,0,0,32),BackgroundColor3=palette.panel,TextColor3=palette.white,BorderSizePixel=1,PlaceholderText='Pesquisar @nick ou nome',Text='',ClearTextOnFocus=false,Font=Enum.Font.Gotham,TextSize=14},playersPage.frame)
+local rosterTop=playersPage.y
+local roster={}
+local rosterFilter=''
+local function layoutRoster()
+    local list={}
+    for _,item in pairs(roster) do table.insert(list,item) end
+    table.sort(list,function(a,b) return a.player.Name:lower()<b.player.Name:lower() end)
+    local y=rosterTop
+    for _,item in ipairs(list) do
+        local p=item.player
+        local visible=rosterFilter=='' or p.Name:lower():find(rosterFilter,1,true) or p.DisplayName:lower():find(rosterFilter,1,true)
+        item.row.Visible=not not visible
+        item.check.Text=selectedPlayer(p) and '✓' or ''
+        item.check.BackgroundColor3=selectedPlayer(p) and Color3.fromRGB(27,79,43) or palette.panel
+        if visible then item.row.Position=UDim2.fromOffset(0,y);y=y+62 end
+    end
+    playersPage.frame.CanvasSize=UDim2.fromOffset(0,y+8)
 end
-connect(nick.FocusLost,function() state.query=nick.Text:match('^%s*(.-)%s*$'):gsub('^@',''); nick.Text=state.query; apply(); resetCamera();queueSave() end)
+local function selectionChanged()
+    if cameraTarget and cameraTarget.player and not selectedPlayer(cameraTarget.player) then resetCamera() end
+    apply();layoutRoster();queueSave()
+end
+local function addRoster(p)
+    departing[p]=nil
+    if p==player or roster[p.UserId] then return end
+    local id=tostring(p.UserId)
+    if state.playerSelection[id]==nil then state.playerSelection[id]=state.newPlayersSelected end
+    local row=create('Frame',{Name='Player_'..id,Size=UDim2.new(1,-2,0,54),BackgroundColor3=palette.panel,BackgroundTransparency=0.25,BorderSizePixel=1,BorderColor3=palette.edge},playersPage.frame)
+    create('ImageLabel',{Size=UDim2.fromOffset(40,40),Position=UDim2.fromOffset(7,7),BackgroundTransparency=1,Image='rbxthumb://type=AvatarHeadShot&id='..id..'&w=150&h=150'},row)
+    local name=text(row,p.DisplayName,UDim2.fromOffset(58,6),UDim2.new(1,-118,0,21),15);name.Font=Enum.Font.GothamBold
+    text(row,'@'..p.Name,UDim2.fromOffset(58,29),UDim2.new(1,-118,0,18),12).TextColor3=palette.muted
+    local check=button(row,'',UDim2.new(1,-43,0,11),UDim2.fromOffset(32,32));check.Name='Select_'..id;check.TextSize=22
+    local item={player=p,row=row,check=check};roster[p.UserId]=item
+    item.connection=check.Activated:Connect(function() state.playerSelection[id]=not selectedPlayer(p);selectionChanged() end)
+    layoutRoster()
+end
+local function removeRoster(p)
+    departing[p]=true
+    local item=roster[p.UserId]
+    if item then item.connection:Disconnect();item.row:Destroy();roster[p.UserId]=nil end
+    if cameraTarget and cameraTarget.player==p then resetCamera() end
+    if p.Character then
+        local root=p.Character:FindFirstChild('HumanoidRootPart');if root then restore(root) end
+        destroyESP(p.Character);destroyAim(p.Character)
+    end
+    layoutRoster()
+end
+local function setRoster(value)
+    for _,item in pairs(roster) do state.playerSelection[tostring(item.player.UserId)]=value end
+    selectionChanged()
+end
+connect(selectAll.Activated,function() setRoster(true) end)
+connect(deselectAll.Activated,function() setRoster(false) end)
+connect(rosterSearch:GetPropertyChangedSignal('Text'),function() rosterFilter=rosterSearch.Text:lower():gsub('^@','');layoutRoster() end)
+for _,p in ipairs(Players:GetPlayers()) do addRoster(p) end
+local notices={}
+local noticeClock=0
+local function arrangeNotices()
+    for i,item in ipairs(notices) do item.frame.Position=UDim2.fromOffset(18,70+(i-1)*46) end
+end
+local function serverNotice(p,joined)
+    if p==player or not state.serverNotices or not alive then return end
+    if #notices>=4 then local old=table.remove(notices,1);old.frame:Destroy() end
+    local frame=create('Frame',{Name='ServerNotice',Size=UDim2.fromOffset(310,40),BackgroundColor3=palette.bg,BackgroundTransparency=0.12,BorderSizePixel=1,BorderColor3=palette.edge},overlays)
+    local caption=text(frame,(joined and '+ ' or '− ')..'@'..p.Name..(joined and ' entrou no servidor' or ' saiu do servidor'),UDim2.fromOffset(10,4),UDim2.new(1,-20,1,-8),13)
+    caption.TextColor3=joined and Color3.fromRGB(160,222,174) or Color3.fromRGB(235,165,157)
+    table.insert(notices,{frame=frame,expires=noticeClock+4});arrangeNotices()
+end
+connect(Players.PlayerAdded,function(p) addRoster(p);serverNotice(p,true);collectCandidates();queueSave() end)
+connect(Players.PlayerRemoving,function(p) removeRoster(p);serverNotice(p,false) end)
+connect(RunService.Heartbeat,function(dt)
+    noticeClock=noticeClock+dt
+    local changed=false
+    for i=#notices,1,-1 do
+        if notices[i].expires<=noticeClock or not state.serverNotices then notices[i].frame:Destroy();table.remove(notices,i);changed=true end
+    end
+    if changed then arrangeNotices() end
+end)
 label(espPage,'Nomes no jogo','Identifique jogadores e NPCs sem cobrir a cena.')
 switch(espPage,'Jogadores','espPlayers')
 switch(espPage,'NPCs / entidades','espEntities')
 
-label(espPage,'Aim Viewer','Linha da mira replicada. Estimativa opcional é rotulada e não representa a mira real.')
+label(espPage,'Aim Viewer','Raio e ponto vermelhos em 3D. Usa mira replicada mesmo sem arma, quando disponível.')
 switch(espPage,'Ativar Aim Viewer','aimViewer')
-switch(espPage,'Permitir estimativa da arma','aimEstimate')
+switch(espPage,'Estimar direção sem dados de mira','aimEstimate')
 field(espPage,'Comprimento da linha','aimLength',10,500,1)
 local aimStatus=text(espPage.frame,'Aim Viewer desligado',UDim2.fromOffset(0,slot(espPage,38)),UDim2.new(1,0,0,34),11);aimStatus.Name='AimViewerStatus'
 aimReport=function(exact,estimated)
@@ -608,11 +703,11 @@ label(espPage,'Visibilidade','Ocultar estes desenhos não desliga o recurso de m
 switch(espPage,'Ocultar todos os desenhos','hideVisuals')
 switch(espPage,'Marcador do cam lock','camMarker')
 switch(espPage,'Linha do cam lock','camTracer')
-label(espPage,'Só o essencial','Apenas o nome de exibição, sem caixa, distância ou vida. Mortos e K.O. ficam ocultos.')
+label(espPage,'Só nomes','Etiquetas nativas acompanham os personagens. Sem caixas ou distância; mortos e K.O. ficam ocultos.')
 label(camPage,'CAM LOCK + PREDICT','Clique na tecla para capturar no FOV. Clique de novo para soltar. Esc também solta.')
 local camKeyY=slot(camPage,46)
 switch(camPage,'Ativar cam lock','camEnabled',resetCamera)
-local preset=button(camPage.frame,'Começar com ping de 80–120 ms',UDim2.fromOffset(0,slot(camPage,40)),UDim2.new(1,0,0,30));preset.Name='PingPreset';preset.Font=Enum.Font.BuilderSans;preset.TextSize=11
+local preset=button(camPage.frame,'Começar com ping de 80–120 ms',UDim2.fromOffset(0,slot(camPage,40)),UDim2.new(1,0,0,30));preset.Name='PingPreset';preset.Font=Enum.Font.Gotham;preset.TextSize=11
 connect(preset.Activated,function()
     state.autoPrediction=true;state.autoPredMath=250;state.autoBase=0.04;state.smoothing=0.22
     for _,key in ipairs({'autoPrediction','autoPredMath','autoBase','smoothing'}) do if controlRefresh[key] then controlRefresh[key]() end end
@@ -635,7 +730,7 @@ switch(predPage,'Usar Air Part','airEnabled')
 choice(predPage,'Parte no ar','airPart',{{'HumanoidRootPart','Centro'},{'Head','Cabeça'},{'UpperTorso','Tronco'},{'LowerTorso','Tronco baixo'}})
 slider(predPage,'Previsão no ar · segundos','airPrediction',0,0.5,0.001)
 label(predPage,'NO AR','Air Part usa o estado de salto/queda e antecipa velocidade + gravidade. No automático, o ping define o tempo nos dois casos.')
-local targetReadout=text(camPage.frame,'Sem alvo',UDim2.fromOffset(0,slot(camPage,32)),UDim2.new(1,0,0,28),11); targetReadout.Font=Enum.Font.BuilderSans; accent(targetReadout,'TextColor3')
+local targetReadout=text(camPage.frame,'Sem alvo',UDim2.fromOffset(0,slot(camPage,32)),UDim2.new(1,0,0,28),11); targetReadout.Font=Enum.Font.Gotham; accent(targetReadout,'TextColor3')
 label(settingsPage,'Do seu jeito','Ajuste a aparência e os atalhos. Suas escolhas ficam salvas neste dispositivo.')
 local hideKey=Enum.KeyCode[state.hideKeyName]
 local captureVersion=0
@@ -656,7 +751,7 @@ local function keyField(value,which)
     end)
 end
 keyField('Ocultar / abrir hub','hide'); keyField('Tecla do cam lock','cam'); refreshKeys()
-local saveText=text(settingsPage.frame,persistenceStatus,UDim2.fromOffset(0,slot(settingsPage,38)),UDim2.new(1,0,0,32),11); saveText.Font=Enum.Font.BuilderSans;saveText.TextColor3=palette.muted
+local saveText=text(settingsPage.frame,persistenceStatus,UDim2.fromOffset(0,slot(settingsPage,38)),UDim2.new(1,0,0,32),11); saveText.Font=Enum.Font.Gotham;saveText.TextColor3=palette.muted
 persistenceReport=function(message) if alive then saveText.Text=message end end
 switch(settingsPage,'Blur ao abrir','blur',function() tween(blur,0.2,{Size=uiOpen and state.blur and state.blurSize or 0}) end)
 label(settingsPage,'COMPATIBILIDADE','Base R6 / R15 com Humanoid. Câmeras e personagens personalizados podem exigir adaptação. Fechar remove efeitos e restaura hitboxes.')
@@ -694,8 +789,9 @@ field(settingsPage,'Tamanho da interface','uiSize',0.65,1.3,0.05,refreshAppearan
 field(settingsPage,'Intensidade do blur','blurSize',0,12,1,refreshAppearance)
 switch(settingsPage,'Reduzir animações','reduceMotion')
 switch(settingsPage,'Notificações de alvo','notifications')
-local foot=text(footer,'L · HUB     Q · CAM LOCK',UDim2.fromOffset(14,12),UDim2.fromOffset(250,18),10); foot.Font=Enum.Font.BuilderSans; foot.TextColor3=palette.muted
-local stats=text(footer,'PING —',UDim2.new(1,-332,0,12),UDim2.fromOffset(318,18),10); stats.Font=Enum.Font.BuilderSans; stats.TextXAlignment=Enum.TextXAlignment.Right; stats.TextColor3=green
+switch(settingsPage,'Avisar entradas e saídas','serverNotices')
+local foot=text(footer,'L · HUB     Q · CAM LOCK',UDim2.fromOffset(14,12),UDim2.fromOffset(250,18),10); foot.Font=Enum.Font.Gotham; foot.TextColor3=palette.muted
+local stats=text(footer,'PING —',UDim2.new(1,-332,0,12),UDim2.fromOffset(318,18),10); stats.Font=Enum.Font.Gotham; stats.TextXAlignment=Enum.TextXAlignment.Right; stats.TextColor3=green
 cameraStatus=function(name,ping,pred)
     targetReadout.Text='ALVO: '..name
     stats.Text=(ping and math.floor(ping*1000)..' ms' or 'ping indisponível')..' / '..string.format('%.3f s',pred)
@@ -767,6 +863,8 @@ function api.Destroy()
     for _,c in ipairs(connections) do c:Disconnect() end
     for _,t in ipairs(activeTweens) do t:Cancel() end
     RunService:UnbindFromRenderStep('EVINI_Camera')
+    for _,item in pairs(roster) do item.connection:Disconnect() end
+    aimFolder:Destroy()
     restoreAll(); blur:Destroy(); overlays:Destroy(); gui:Destroy()
     espObjects={}; candidates={}; npcModels={};aimItems={}
     if env.EVINI==api then env.EVINI=nil end
@@ -782,7 +880,7 @@ end)
 local elapsed,collectElapsed,pingElapsed=0,0,0
 connect(RunService.Heartbeat,function(dt)
     elapsed=elapsed+dt; collectElapsed=collectElapsed+dt; pingElapsed=pingElapsed+dt
-    if elapsed>=0.05 then elapsed=0; apply() end
+    if elapsed>=0.1 then elapsed=0; apply() end
     if collectElapsed>=0.3 then collectElapsed=0; collectCandidates(); fitUI() end
     if pingElapsed>=1 then
         pingElapsed=0

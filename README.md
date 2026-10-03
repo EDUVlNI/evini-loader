@@ -1,18 +1,29 @@
-# EVINI 2.6
+# EVINI 3.0
 
-Hub preto e branco com cam lock, hitbox e configurações visuais. Silent aim e silent lock removidos por completo, incluindo atalhos, círculos e interceptação de chamadas.
+Hub independente inspirado nas capturas das configurações do Da Hood: abas horizontais, painéis escuros translúcidos, título destacado, interruptores verdes e botão de fechar vermelho. Não carrega Nitrogen ou Azure.
 
 ```lua
 loadstring(game:HttpGet("https://raw.githubusercontent.com/EDUVlNI/evini-loader/main/main.lua"))()
 ```
 
-- **L:** abrir ou ocultar o hub.
-- **Q:** prender ou soltar o cam lock, com o hub oculto.
-- **Esc:** soltar o cam lock.
-- **X:** encerrar e restaurar hitboxes.
+## Jogadores
 
-Atalhos personalizados salvos continuam valendo. Mantidos: tamanho numérico e transparência da hitbox, filtros por nick, Knock Check, FOV, predict, Air Part, ESP somente nomes, Aim Viewer, animações, aparência e salvamento local quando disponível. Configurações antigas de silent são ignoradas.
+Aba com avatar, nome de exibição e @usuário de cada outro jogador presente. Uma caixa marcada permite hitbox e cam lock; desmarcada exclui dos dois. Desmarcar restaura imediatamente a hitbox e libera o alvo atual. Marcar todos / Desmarcar todos afetam o servidor atual, mesmo com busca ativa. A opção Selecionar novos jogadores define o padrão de quem entrar depois; escolhas anteriores salvas prevalecem.
 
-Compilação e testes simulados verificam o código; o comportamento no jogo precisa de validação no Roblox. O servidor pode ignorar alterações locais de hitbox. Aim Viewer depende dos dados replicados; a estimativa opcional é identificada como estimativa.
+A seleção é salva por UserId quando o executor permite arquivos locais. Ela acompanha respawns e entradas futuras. Os antigos filtros de nick único foram substituídos por esta lista. NPCs continuam sob o controle próprio Incluir NPCs no lock.
 
-Em Mira, desligue **Mostrar círculo do FOV** para deixá-lo invisível sem desativar o cam lock. A captura mostra **EVINI / locked in @username**, usando o nome de usuário real. Notificações respeitam os controles de visibilidade existentes.
+## Avisos e visual
+
+- Entradas e saídas: @nick no canto superior esquerdo, até quatro avisos simultâneos, duração de quatro segundos. A lista inicial não gera avisos. Desativação em Ajustes.
+- ESP: somente nomes, agora com etiquetas nativas que acompanham o personagem; reaproveitamento dos elementos durante K.O. e recuperação. Máximo de 1.200 studs. Verificação de elegibilidade a cada 0,15 s; sem reprojeção manual contínua dos nomes.
+- Aim Viewer: raio e ponto vermelhos em 3D, com atualização limitada a 30 Hz. Quando BodyEffects.MousePos está replicado, funciona inclusive sem arma equipada. Sem esse dado, a opção de estimativa mostra a direção da arma ou cabeça, com legenda explícita. Não revela um cursor remoto que o jogo não compartilha, nem garante a atualidade do último valor replicado. O raio respeita a oclusão 3D; o rótulo permanece visível como sobreposição.
+
+## Controles preservados
+
+**L** abre/oculta; **Q** captura/solta cam lock com hub oculto; **Esc** solta; **X** encerra e restaura hitboxes. Preferências de atalhos continuam valendo. Mantidos FOV invisível, predict, Air Part, Knock Check, tamanho numérico e transparência da hitbox, notificações EVINI / locked in @nome e configurações de aparência. Silent continua removido.
+
+## Validação
+
+Compilação Luau e testes simulados de câmera, seleção individual/em lote, persistência, entrada/saída, limpeza de conexões, limite/expiração de avisos, reutilização do ESP e Aim Viewer sem arma. Testes reproduzíveis em `tests/regression.py`, com Python, lupa e luaparser. Não medimos FPS nem renderizamos a UI dentro do Roblox/Opiumware; aparência e desempenho reais precisam de validação no jogo.
+
+Referências técnicas: [BillboardGui](https://create.roblox.com/docs/reference/engine/classes/BillboardGui), [Beam](https://create.roblox.com/docs/reference/engine/classes/Beam), [Players](https://create.roblox.com/docs/reference/engine/classes/Players). A referência visual principal são os prints fornecidos pelo usuário.
