@@ -1,4 +1,4 @@
--- EVINI 3.4: fonte independente. Nao carrega o Nitrogen.
+-- EVINI 3.5: fonte independente. Nao carrega o Nitrogen.
 -- Alteracoes de hitbox sao locais; o servidor pode ignora-las.
 local Players = game:GetService('Players')
 local UIS = game:GetService('UserInputService')
@@ -473,8 +473,8 @@ local fitReadout=function() end
 local function fitUI()
     local camera=Workspace.CurrentCamera
     if camera then
-        local width=math.clamp(620*state.uiSize,400,900)
-        local height=math.clamp(650*state.uiSize,430,900)
+        local width=math.floor(math.clamp(580*state.uiSize,420,820)+0.5)
+        local height=math.floor(math.clamp(610*state.uiSize,450,820)+0.5)
         local scale=math.min(1,(camera.ViewportSize.X-28)/width,(camera.ViewportSize.Y-100)/height)
         uiScale.Scale=math.max(0.1,scale)
         rootUI.Size=UDim2.fromOffset(width,height)
@@ -515,6 +515,15 @@ local close=button(header,'×',UDim2.new(1,-52,0,28),UDim2.fromOffset(30,30));cl
 local smaller=button(header,'−',UDim2.fromOffset(22,30),UDim2.fromOffset(24,26));smaller.Name='SmallerUI'
 local scaleReadout=button(header,'100%',UDim2.fromOffset(50,30),UDim2.fromOffset(50,26));scaleReadout.Name='ResetUISize';scaleReadout.TextSize=11
 local larger=button(header,'+',UDim2.fromOffset(104,30),UDim2.fromOffset(24,26));larger.Name='LargerUI'
+-- Simple geometric icons stay crisp instead of scaling Unicode glyphs.
+local function lineIcon(b,kind)
+    b.Text=''
+    local rotations=kind=='close' and {45,-45} or (kind=='plus' and {0,90} or {0})
+    for _,rotation in ipairs(rotations) do
+        create('Frame',{Name='IconLine',AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.fromScale(0.5,0.5),Size=UDim2.fromOffset(kind=='close' and 13 or 10,2),Rotation=rotation,BackgroundColor3=Color3.fromRGB(230,230,226),BorderSizePixel=0},b)
+    end
+end
+lineIcon(hide,'minus');lineIcon(close,'close');lineIcon(smaller,'minus');lineIcon(larger,'plus')
 fitReadout=function(scale) scaleReadout.Text=tostring(math.floor(scale*100+0.5))..'%' end
 local refreshSizeControls=function() end
 local function setUISize(value)
@@ -537,24 +546,34 @@ local function showUI(open,after)
 end
 local pages,tabs={},{}
 local currentPage='Mira'
+local function refreshTabs()
+    for name,b in pairs(tabs) do
+        local active=name==currentPage
+        b.TextColor3=active and Color3.fromRGB(250,250,246) or palette.muted
+        b.BackgroundColor3=active and Color3.fromRGB(88,88,84) or Color3.fromRGB(40,40,38)
+        local highlight=b:FindFirstChild('SelectedTabHighlight')
+        if highlight then highlight.Visible=active end
+    end
+end
 local function page(name,index)
-    local frame=create('ScrollingFrame',{Name=name,Position=UDim2.fromOffset(8,12),Size=UDim2.new(1,-16,1,-24),BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=4,ScrollBarImageColor3=green,CanvasSize=UDim2.fromOffset(0,0),Visible=index==1},body)
+    local frame=create('ScrollingFrame',{Name=name,Position=UDim2.fromOffset(8,12),Size=UDim2.new(1,-16,1,-24),BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=5,ScrollBarImageColor3=green,CanvasSize=UDim2.fromOffset(0,0),Visible=index==1},body)
     frame.ScrollingDirection=Enum.ScrollingDirection.Y
     frame.VerticalScrollBarInset=Enum.ScrollBarInset.Always
-    local content=create('Frame',{Name=name..'Content',Position=UDim2.fromOffset(2,2),Size=UDim2.new(1,-20,0,0),BackgroundTransparency=1,BorderSizePixel=0},frame)
+    local content=create('Frame',{Name=name..'Content',Position=UDim2.fromOffset(3,2),Size=UDim2.new(1,-9,0,0),BackgroundTransparency=1,BorderSizePixel=0},frame)
     pages[name]={frame=content,scroll=frame,y=0};accent(frame,'ScrollBarImageColor3')
     local b=button(sidebar,name,UDim2.new((index-1)/5,3,0,5),UDim2.new(0.2,-6,0,34)); b.Name='Tab_'..name; b.Font=Enum.Font.GothamMedium;b.TextSize=14
     tabs[name]=b
+    create('Frame',{Name='SelectedTabHighlight',Position=UDim2.fromOffset(2,2),Size=UDim2.new(1,-4,0,2),BackgroundColor3=Color3.fromRGB(170,170,164),BorderSizePixel=0,Visible=false},b)
     connect(b.Activated,function()
-        currentPage=name
+        currentPage=name;refreshTabs()
         for key,p in pairs(pages) do
             if p.tabTween then p.tabTween:Cancel() end
-            p.scroll.Visible=key==name;tabs[key].TextColor3=key==name and green or palette.muted
+            p.scroll.Visible=key==name
             if key==name then p.scroll.Position=UDim2.fromOffset(8,12)
             end
         end
     end)
-    b.TextColor3=index==1 and green or palette.muted
+    refreshTabs()
     return pages[name]
 end
 local camPage=page('Mira',1)
@@ -566,7 +585,7 @@ local function subPage() return {frame=create('Frame',{BackgroundTransparency=1,
 local predPage=subPage()
 local function slot(p,h)
     local y=p.y;p.y=y+h
-    p.frame.Size=UDim2.new(1,p.scroll and -20 or 0,0,p.y+8)
+    p.frame.Size=UDim2.new(1,p.scroll and -9 or 0,0,p.y+8)
     if p.scroll then p.scroll.CanvasSize=UDim2.fromOffset(0,p.y+12) end
     return y
 end
@@ -668,7 +687,7 @@ local function layoutRoster()
         item.check.BackgroundColor3=selectedPlayer(p) and Color3.fromRGB(27,79,43) or palette.panel
         if visible then item.row.Position=UDim2.fromOffset(0,y);y=y+62 end
     end
-    playersPage.frame.Size=UDim2.new(1,-20,0,y+8)
+    playersPage.frame.Size=UDim2.new(1,-9,0,y+8)
     playersPage.scroll.CanvasSize=UDim2.fromOffset(0,y+12)
 end
 local function selectionChanged()
@@ -812,7 +831,7 @@ local function arrangeFolds()
         y=y+40;f.page.frame.Position=UDim2.fromOffset(0,y);f.page.frame.Visible=f.open
         if f.open then y=y+f.page.y+12 end
     end
-    camPage.frame.Size=UDim2.new(1,-20,0,y+10)
+    camPage.frame.Size=UDim2.new(1,-9,0,y+10)
     camPage.scroll.CanvasSize=UDim2.fromOffset(0,y+14)
 end
 for _,definition in ipairs({{'Calibração avançada',predPage}}) do
@@ -827,7 +846,7 @@ local function refreshAppearance()
     for _,binding in ipairs(accentBindings) do if binding[1].Parent then binding[1][binding[2]]=green end end
     topFill.BackgroundTransparency=state.uiOpacity;lowerFill.BackgroundTransparency=state.uiOpacity
     for _,refresh in pairs(controlRefresh) do refresh() end
-    for name,b in pairs(tabs) do b.TextColor3=name==currentPage and green or palette.muted end
+    refreshTabs()
     fitUI()
 end
 label(settingsPage,'Aparência')

@@ -1,4 +1,4 @@
-# Revisão EVINI 3.4
+# Revisão EVINI 3.5
 
 - Interface reorganizada em Mira, Visual, Jogadores e Ajustes; estilo inspirado nas capturas fornecidas, sem copiar imagens do jogo.
 - Filtro por nick único substituído por caixas de seleção persistentes por UserId, busca e seleção em lote. Restauração imediata ao desmarcar; validação do alvo também durante cam lock.
@@ -42,3 +42,7 @@ Tema preto fumê, transparência inicial de 0,28 aplicada uma vez ao migrar do t
 Tamanho agora muda a largura e altura da janela, mantendo textos e controles em tamanho legível. Largura mínima 400 e altura mínima 430 pixels lógicos; em telas menores a interface inteira é limitada ao viewport. Campos e interruptores centralizados nas linhas, margem interna comum e barras mais curtas. Cinco abas distribuem-se proporcionalmente.
 
 Compilação e regressões simuladas passaram. A renderização real no Opiumware ainda requer confirmação pelo usuário; não alegamos reprodução exata comprovada no jogo.
+
+## Ajustes 3.5
+
+Aba selecionada mantém fundo mais claro, texto branco e brilho superior. Margem interna da rolagem reduzida de 20 para 9 pixels, preservando espaço próprio para a barra. Janela com proporção base 580 × 610 e medidas inteiras, largura mínima 420; textos e controles não encolhem junto com a janela. Ícones de fechar, minimizar e tamanho desenhados com linhas nativas. Testes simulados cobrem seleção da aba, margens, ícones e regressões anteriores; visual real ainda depende de conferência no Roblox.

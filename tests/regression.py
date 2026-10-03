@@ -216,12 +216,14 @@ assert(find('BevanTitle') and not find('HubTitle').Visible,'native Bevan indepen
 assert(find('UnifiedPanel').ClassName=='CanvasGroup','one animated panel')
 for _,name in ipairs({'Mira','Hitbox','Visual','Jogadores','Ajustes'}) do
  local scroll=find(name);local content=find(name..'Content')
- assert(content.Parent==scroll and content.Size.X.Offset==-20,'dedicated inset content')
+ assert(content.Parent==scroll and content.Size.X.Offset==-9,'dedicated inset content')
  assert(scroll.ScrollingDirection==Enum.ScrollingDirection.Y,'no horizontal scrolling')
  assert(scroll.VerticalScrollBarInset==Enum.ScrollBarInset.Always,'scroll gutter reserved')
 end
 find('Tab_Jogadores').Activated:Fire()
 assert(find('Jogadores').Visible and not find('Mira').Visible,'tab changes scroll container')
+assert(find('Tab_Jogadores').BackgroundColor3[1]==88 and find('Tab_Mira').BackgroundColor3[1]==40,'selected tab stays brighter')
+assert(find('Close').Text=='' and find('LargerUI').Text=='','geometric icons')
 
 local oldScale=find('Hub').Size.X.Offset
 find('SmallerUI').Activated:Fire();assert(find('Hub').Size.X.Offset<oldScale,'shrink immediately')
