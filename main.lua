@@ -1,4 +1,4 @@
--- EVINI 3.1: fonte independente. Nao carrega o Nitrogen.
+-- EVINI 3.2: fonte independente. Nao carrega o Nitrogen.
 -- Alteracoes de hitbox sao locais; o servidor pode ignora-las.
 local Players = game:GetService('Players')
 local UIS = game:GetService('UserInputService')
@@ -483,7 +483,7 @@ local sidebar=region('Navigation',10,94,600,46)
 local body=region('Content',10,142,600,462)
 local footer=region('Footer',10,610,600,34)
 local title=text(header,'EV',UDim2.fromOffset(100,0),UDim2.new(1,-200,0,84),64)
-title.Name='HubTitle';title.Font=Enum.Font.Arvo;title.TextXAlignment=Enum.TextXAlignment.Center;title.TextStrokeTransparency=0;title.TextStrokeColor3=Color3.new(0,0,0)
+title.Name='HubTitle';title.Font=Enum.Font.GothamBlack;title.TextXAlignment=Enum.TextXAlignment.Center;title.TextStrokeTransparency=0;title.TextStrokeColor3=Color3.new(0,0,0)
 create('UIStroke',{Color=Color3.new(0,0,0),Thickness=3},title)
 local hide=button(header,'−',UDim2.new(1,-90,0,28),UDim2.fromOffset(30,30));hide.Name='Hide';hide.TextSize=22
 local close=button(header,'×',UDim2.new(1,-52,0,28),UDim2.fromOffset(30,30));close.Name='Close';close.TextSize=22;close.BackgroundColor3=Color3.fromRGB(99,33,29)
@@ -526,17 +526,20 @@ local pages,tabs={},{}
 local currentPage='Mira'
 local function page(name,index)
     local frame=create('ScrollingFrame',{Name=name,Position=UDim2.fromOffset(14,12),Size=UDim2.new(1,-38,1,-24),BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=4,ScrollBarImageColor3=green,CanvasSize=UDim2.fromOffset(0,0),Visible=index==1},body)
-    pages[name]={frame=frame,y=0};accent(frame,'ScrollBarImageColor3')
+    frame.ScrollingDirection=Enum.ScrollingDirection.Y
+    frame.VerticalScrollBarInset=Enum.ScrollBarInset.Always
+    local content=create('Frame',{Name=name..'Content',Position=UDim2.fromOffset(2,2),Size=UDim2.new(1,-20,0,0),BackgroundTransparency=1,BorderSizePixel=0},frame)
+    pages[name]={frame=content,scroll=frame,y=0};accent(frame,'ScrollBarImageColor3')
     local b=button(sidebar,name,UDim2.fromOffset(8+(index-1)*147,5),UDim2.fromOffset(140,34)); b.Name='Tab_'..name; b.Font=Enum.Font.Gotham
     tabs[name]=b
     connect(b.Activated,function()
         currentPage=name
         for key,p in pairs(pages) do
             if p.tabTween then p.tabTween:Cancel() end
-            p.frame.Visible=key==name;tabs[key].TextColor3=key==name and green or palette.muted
+            p.scroll.Visible=key==name;tabs[key].TextColor3=key==name and green or palette.muted
             if key==name then
-                p.frame.Position=UDim2.fromOffset(14,state.reduceMotion and 12 or 17)
-                p.tabTween=TweenService:Create(p.frame,TweenInfo.new(state.reduceMotion and 0 or 0.14,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Position=UDim2.fromOffset(14,12)})
+                p.scroll.Position=UDim2.fromOffset(14,state.reduceMotion and 12 or 17)
+                p.tabTween=TweenService:Create(p.scroll,TweenInfo.new(state.reduceMotion and 0 or 0.14,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Position=UDim2.fromOffset(14,12)})
                 p.tabTween:Play()
             end
         end
@@ -552,7 +555,10 @@ local function subPage() return {frame=create('Frame',{BackgroundTransparency=1,
 local hitPage=subPage()
 local predPage=subPage()
 local function slot(p,h)
-    local y=p.y; p.y=y+h; if p.frame:IsA('ScrollingFrame') then p.frame.CanvasSize=UDim2.fromOffset(0,p.y+8) else p.frame.Size=UDim2.new(1,0,0,p.y+8) end; return y
+    local y=p.y;p.y=y+h
+    p.frame.Size=UDim2.new(1,p.scroll and -20 or 0,0,p.y+8)
+    if p.scroll then p.scroll.CanvasSize=UDim2.fromOffset(0,p.y+12) end
+    return y
 end
 local function label(p,value,description)
     local y=slot(p,description and 57 or 32)
@@ -652,7 +658,8 @@ local function layoutRoster()
         item.check.BackgroundColor3=selectedPlayer(p) and Color3.fromRGB(27,79,43) or palette.panel
         if visible then item.row.Position=UDim2.fromOffset(0,y);y=y+62 end
     end
-    playersPage.frame.CanvasSize=UDim2.fromOffset(0,y+8)
+    playersPage.frame.Size=UDim2.new(1,-20,0,y+8)
+    playersPage.scroll.CanvasSize=UDim2.fromOffset(0,y+12)
 end
 local function selectionChanged()
     if cameraTarget and cameraTarget.player and not selectedPlayer(cameraTarget.player) then resetCamera() end
@@ -792,7 +799,8 @@ local function arrangeFolds()
         y=y+40;f.page.frame.Position=UDim2.fromOffset(0,y);f.page.frame.Visible=f.open
         if f.open then y=y+f.page.y+12 end
     end
-    camPage.frame.CanvasSize=UDim2.fromOffset(0,y+10)
+    camPage.frame.Size=UDim2.new(1,-20,0,y+10)
+    camPage.scroll.CanvasSize=UDim2.fromOffset(0,y+14)
 end
 for _,definition in ipairs({{'Calibração avançada',predPage},{'Hitbox e filtros',hitPage}}) do
     local f={name=definition[1],page=definition[2],open=false}

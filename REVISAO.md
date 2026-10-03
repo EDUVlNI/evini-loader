@@ -1,4 +1,4 @@
-# Revisão EVINI 3.1
+# Revisão EVINI 3.2
 
 - Interface reorganizada em Mira, Visual, Jogadores e Ajustes; estilo inspirado nas capturas fornecidas, sem copiar imagens do jogo.
 - Filtro por nick único substituído por caixas de seleção persistentes por UserId, busca e seleção em lote. Restauração imediata ao desmarcar; validação do alvo também durante cam lock.
@@ -18,3 +18,9 @@ Não foi feito teste visual, de FPS ou de acertos em sessão real do Da Hood. O 
 Substituídos quatro CanvasGroups por um CanvasGroup único; cabeçalho, abas, conteúdo e rodapé são regiões transparentes de um mesmo painel. A silhueta recorta a metade inferior do topo arredondado e continua em base reta, sem sobrepor preenchimentos translúcidos.
 
 Adicionados controles de escala no topo, slider com aplicação imediata, limite pelo viewport, porcentagem efetiva e reset. Som compartilhado com mute/volume. Testes cobrem reduzir/aumentar/restaurar escala, áudio ativado/desativado, inversão de animação e encerramento, além das regressões anteriores. Sem confirmação visual ou auditiva no jogo.
+
+## Correção 3.2
+
+Corrigida a inicialização interrompida por Enum.Font.Arvo, inexistente no Roblox; o título agora usa GothamBlack. O teste valida fontes estritamente e reproduz a falha da 3.1 antes de confirmar a correção.
+
+Cada aba agora tem um Frame de conteúdo próprio com margem direita de 20 pixels e espaço reservado para a barra vertical. Rolagem horizontal desativada; altura de conteúdo e canvas sincronizadas na lista de jogadores e painéis expansíveis. Compilação e regressões passaram; renderização real ainda requer conferência no Roblox.

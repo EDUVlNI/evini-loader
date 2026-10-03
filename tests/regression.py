@@ -14,6 +14,10 @@ function signal()
 end
 local values=0
 Enum=setmetatable({}, {__index=function(t,k) local v=setmetatable({}, {__index=function(t,s) values=values+1; local e={Name=s,Value=values}; rawset(t,s,e); return e end}); rawset(t,k,v); return v end})
+-- Font names are strict: invalid enums must fail as they do in Roblox.
+local fonts={}
+for _,name in ipairs({'Gotham','GothamMedium','GothamBold','GothamBlack'}) do fonts[name]={Name=name} end
+Enum.Font=setmetatable(fonts,{__index=function(_,key) error('Invalid Font: '..key) end})
 local vec={}
 vec.__index=function(v,k)
  if k=='Magnitude' then return math.sqrt(v.X*v.X+v.Y*v.Y+(v.Z or 0)^2) end
@@ -190,6 +194,15 @@ for _,n in ipairs(nodes) do assert(n.Name~='Tab_PREDICT','no separate prediction
 -- Single panel, scale access and audio controls.
 assert(find('HubTitle').Text=='EV','center title')
 assert(find('UnifiedPanel').ClassName=='CanvasGroup','one animated panel')
+for _,name in ipairs({'Mira','Visual','Jogadores','Ajustes'}) do
+ local scroll=find(name);local content=find(name..'Content')
+ assert(content.Parent==scroll and content.Size.X.Offset==-20,'dedicated inset content')
+ assert(scroll.ScrollingDirection==Enum.ScrollingDirection.Y,'no horizontal scrolling')
+ assert(scroll.VerticalScrollBarInset==Enum.ScrollBarInset.Always,'scroll gutter reserved')
+end
+find('Tab_Jogadores').Activated:Fire()
+assert(find('Jogadores').Visible and not find('Mira').Visible,'tab changes scroll container')
+
 local oldScale=find('UserScale').Scale
 find('SmallerUI').Activated:Fire();assert(find('UserScale').Scale<oldScale,'shrink immediately')
 find('LargerUI').Activated:Fire();assert(math.abs(find('UserScale').Scale-oldScale)<0.001,'grow immediately')
