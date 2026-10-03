@@ -1,4 +1,4 @@
--- EVINI 3.8: fonte independente. Nao carrega o Nitrogen.
+-- EVINI 3.9: fonte independente. Nao carrega o Nitrogen.
 -- Alteracoes de hitbox sao locais; o servidor pode ignora-las.
 local Players = game:GetService('Players')
 local UIS = game:GetService('UserInputService')
@@ -879,7 +879,7 @@ cameraStatus=function(name,ping,pred)
     stats.Text=(ping and math.floor(ping*1000)..' ms' or 'ping indisponível')..' / '..string.format('%.3f s',pred)
     foot.Text=hideKey.Name..' · HUB   '..camBind.Name..' · '..(cameraTarget and 'LOCK' or 'CAM')
 end
-local toast=create('Frame',{Name='TargetNotice',AnchorPoint=Vector2.new(0.5,1),Position=UDim2.new(0.5,0,1,-38),Size=UDim2.fromOffset(300,58),BackgroundColor3=palette.bg,BorderSizePixel=0,Visible=false},overlays)
+local toast=create('Frame',{Name='TargetNotice',AnchorPoint=Vector2.new(1,1),Position=UDim2.new(1,-28,1,-110),Size=UDim2.fromOffset(300,58),BackgroundColor3=palette.bg,BorderSizePixel=0,Visible=false},overlays)
 round(toast,7)
 local toastTitle=text(toast,'EVINI',UDim2.fromOffset(14,8),UDim2.fromOffset(272,18),12);accent(toastTitle,'TextColor3')
 local toastBody=text(toast,'',UDim2.fromOffset(14,29),UDim2.fromOffset(272,19),12)

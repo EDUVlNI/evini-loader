@@ -1,4 +1,4 @@
-# Revisão EVINI 3.8
+# Revisão EVINI 3.9
 
 - Interface reorganizada em Mira, Visual, Jogadores e Ajustes; estilo inspirado nas capturas fornecidas, sem copiar imagens do jogo.
 - Filtro por nick único substituído por caixas de seleção persistentes por UserId, busca e seleção em lote. Restauração imediata ao desmarcar; validação do alvo também durante cam lock.
@@ -58,3 +58,7 @@ Fundo quase preto com transparência padrão 0,16 aplicada uma vez na migração
 ## Aparência 3.8
 
 Verde dos interruptores e caixas selecionadas amostrado do centro do print: RGB (37,71,41), #254729, sem gradiente que altere a cor. Fundo mais transparente por padrão (0,38), aplicado uma vez ao atualizar. Em Ajustes há sliders e campos numéricos independentes para Transparência (0–0,80) e Escurecimento (0 = cinza escuro, 1 = preto). Alterações instantâneas e persistentes; não afetam a transparência do texto.
+
+## Notificação 3.9
+
+Aviso de alvo movido para a região inferior direita, com 28 pixels de margem lateral e 110 pixels acima da base. Avisos de entrada/saída permanecem no alto à esquerda.
