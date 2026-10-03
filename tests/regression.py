@@ -16,7 +16,7 @@ local values=0
 Enum=setmetatable({}, {__index=function(t,k) local v=setmetatable({}, {__index=function(t,s) values=values+1; local e={Name=s,Value=values}; rawset(t,s,e); return e end}); rawset(t,k,v); return v end})
 -- Font names are strict: invalid enums must fail as they do in Roblox.
 local fonts={}
-for _,name in ipairs({'Gotham','GothamMedium','GothamBold','GothamBlack'}) do fonts[name]={Name=name} end
+for _,name in ipairs({'Gotham','GothamMedium','GothamBold','GothamBlack','Merriweather'}) do fonts[name]={Name=name} end
 Enum.Font=setmetatable(fonts,{__index=function(_,key) error('Invalid Font: '..key) end})
 local vec={}
 vec.__index=function(v,k)
@@ -160,6 +160,25 @@ s.autoPredMath=500;frame(0.1)
 assert(math.abs(workspace.CurrentCamera.CFrame.Target.X-2.8)<0.001,'higher math lowers lead')
 function me:GetNetworkPing() error('unsupported') end
 run.Heartbeat:Fire(1.1);frame(0.1);assert(math.abs(workspace.CurrentCamera.CFrame.Target.X-3)<0.001,'manual fallback')
+-- Occlusion pauses camera without releasing the same selected target.
+wall={Instance={IsDescendantOf=function() return false end}}
+local paused=workspace.CurrentCamera.CFrame
+frame(0.2);assert(workspace.CurrentCamera.CFrame==paused,'wall pauses tracking')
+wall=nil;frame(0.2);assert(workspace.CurrentCamera.CFrame~=paused,'visibility resumes without key')
+local originalProjection=workspace.CurrentCamera.WorldToViewportPoint
+workspace.CurrentCamera.WorldToViewportPoint=function() return Vector3.new(0,0,-1),false end
+paused=workspace.CurrentCamera.CFrame;frame(0.2);assert(workspace.CurrentCamera.CFrame==paused,'offscreen pauses')
+workspace.CurrentCamera.WorldToViewportPoint=originalProjection
+frame(0.2);assert(workspace.CurrentCamera.CFrame~=paused,'same target resumes onscreen')
+s.fovTransparency=0.75;frame(0.1)
+local strokeFound=false
+for _,n in ipairs(nodes) do if n.ClassName=='UIStroke' and n.Parent==find('FOV') then assert(n.Transparency==0.75);strokeFound=true end end
+assert(strokeFound,'FOV opacity applies')
+s.cycleParts=true;s.cycleInterval=0.3
+local sawHead,sawTorso=false,false
+for i=1,12 do frame(0.11);local y=workspace.CurrentCamera.CFrame.Target.Y;if y==2 then sawHead=true elseif y==1 then sawTorso=true end end
+assert(sawHead and sawTorso,'cycles head and torso');s.cycleParts=false
+for _,n in ipairs(nodes) do assert(n.ClassName~='BlurEffect','no external blur') end
 -- Appearance settings, collapsed panels, names-only ESP.
 press('L');advance(0.6)
 find('accent').Activated:Fire();assert(s.accent=='Cinza','accent change')
@@ -175,7 +194,7 @@ for _,n in ipairs(nodes) do
 end
 assert(names==3,'player and NPC names')
 local tabs=0;for _,n in ipairs(nodes) do if n.Name:sub(1,4)=='Tab_' then tabs=tabs+1 end end
-assert(tabs==4,'four tabs including player selection')
+assert(tabs==5,'five tabs with separate hitbox')
 press('L');advance(0.1)
 -- Basic earlier regression checks.
 find('enabled').Activated:Fire();assert(enemy.Character.root.Size.X==8,'expansion')
@@ -192,9 +211,9 @@ assert(find('Mira').Name=='Mira','combined page')
 for _,n in ipairs(nodes) do assert(n.Name~='Tab_PREDICT','no separate prediction tab') end
 
 -- Single panel, scale access and audio controls.
-assert(find('HubTitle').Text=='EV','center title')
+assert(find('HubTitle').Text=='EVINI','center title')
 assert(find('UnifiedPanel').ClassName=='CanvasGroup','one animated panel')
-for _,name in ipairs({'Mira','Visual','Jogadores','Ajustes'}) do
+for _,name in ipairs({'Mira','Hitbox','Visual','Jogadores','Ajustes'}) do
  local scroll=find(name);local content=find(name..'Content')
  assert(content.Parent==scroll and content.Size.X.Offset==-20,'dedicated inset content')
  assert(scroll.ScrollingDirection==Enum.ScrollingDirection.Y,'no horizontal scrolling')

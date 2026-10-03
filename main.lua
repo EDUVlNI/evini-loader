@@ -1,4 +1,4 @@
--- EVINI 3.2: fonte independente. Nao carrega o Nitrogen.
+-- EVINI 3.3: fonte independente. Nao carrega o Nitrogen.
 -- Alteracoes de hitbox sao locais; o servidor pode ignora-las.
 local Players = game:GetService('Players')
 local UIS = game:GetService('UserInputService')
@@ -6,7 +6,6 @@ local RunService = game:GetService('RunService')
 local TweenService = game:GetService('TweenService')
 local ContentProvider = game:GetService('ContentProvider')
 local Workspace=game:GetService('Workspace')
-local Lighting=game:GetService('Lighting')
 local GuiService=game:GetService('GuiService')
 local player = Players.LocalPlayer
 assert(player, '[EVINI] Execute em um cliente com LocalPlayer.')
@@ -15,13 +14,13 @@ if type(env.EVINI) == 'table' and type(env.EVINI.Destroy) == 'function' then pca
 local state = {enabled=false, size=8, transparent=false, knockCheck=true, playerSelection={}, newPlayersSelected=true}
 state.serverNotices=true; state.espPlayers=false; state.espEntities=false
 state.camEnabled=false; state.camNPC=false; state.wallCheck=true; state.camTeam=false
-state.fov=140; state.showFov=true; state.hitPart='Head'
+state.fovTransparency=0.22;state.cycleParts=false;state.cycleInterval=0.8;state.fov=140; state.showFov=true; state.hitPart='Head'
 state.airEnabled=true; state.airPart='HumanoidRootPart'; state.prediction=0.12; state.airPrediction=0.12
 state.autoPrediction=false; state.autoPredMath=250; state.autoBase=0.04; state.smoothing=0.22
-state.uiSounds=true;state.soundVolume=0.2;state.accent='Branco';state.uiOpacity=0.18;state.uiSize=1;state.blurSize=5;state.reduceMotion=false;state.notifications=true
+state.uiSounds=true;state.soundVolume=0.2;state.accent='Branco';state.uiOpacity=0.18;state.uiSize=1;state.reduceMotion=false;state.notifications=true
 state.camMarker=false;state.camTracer=false;state.hideVisuals=false
 state.aimViewer=false;state.aimEstimate=false;state.aimLength=120
-state.blur=true; state.hideKeyName='L'; state.camKeyName='Q'
+state.hideKeyName='L'; state.camKeyName='Q'
 local closing=false
 local alive=true
 -- Preferencias locais por experiencia. JSON validado, nunca executado.
@@ -29,7 +28,7 @@ local HttpService=game:GetService('HttpService')
 local settingsFile='evini-settings-'..tostring((game.GameId and game.GameId>0) and game.GameId or game.PlaceId or 0)..'.json'
 local defaults={}
 for k,v in pairs(state) do defaults[k]=v end
-local bounds={aimLength={10,500},uiOpacity={0,0.45},soundVolume={0,0.6},uiSize={0.45,1.5},blurSize={0,12},size={2,30},fov={30,500},prediction={0,0.5},airPrediction={0,0.5},autoPredMath={100,1000},autoBase={0,0.2},smoothing={0,1}}
+local bounds={fovTransparency={0,1},cycleInterval={0.3,3},aimLength={10,500},uiOpacity={0,0.45},soundVolume={0,0.6},uiSize={0.45,1.5},size={2,30},fov={30,500},prediction={0,0.5},airPrediction={0,0.5},autoPredMath={100,1000},autoBase={0,0.2},smoothing={0,1}}
 local options={accent={Branco=true,Cinza=true},hitPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true},airPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true}}
 local persistenceStatus='Salvamento indisponível neste executor'
 local persistenceReport=function() end
@@ -236,9 +235,15 @@ local function filterCamera(entry)
     if state.camTeam and not player.Neutral and not entry.player.Neutral and player.Team and player.Team==entry.player.Team then return false end
     return true
 end
+local aimClock=0
 local function aimPart(entry,hum)
     local air=hum:GetState()==Enum.HumanoidStateType.Freefall or hum:GetState()==Enum.HumanoidStateType.Jumping
-    return targetPart(entry.model,(state.airEnabled and air) and state.airPart or state.hitPart),air
+    local name=state.hitPart
+    if state.cycleParts then
+        local sequence={'UpperTorso','LowerTorso','Head'}
+        name=sequence[math.floor(aimClock/state.cycleInterval)%#sequence+1]
+    end
+    return targetPart(entry.model,(state.airEnabled and air) and state.airPart or name),air
 end
 local function visibleToCamera(entry,part,camera)
     if not state.wallCheck then return true end
@@ -415,6 +420,8 @@ end
 
 local espElapsed,aimElapsed,statusElapsed=0,0,0
 local function render(dt)
+    aimClock=aimClock+dt
+    ringStroke.Transparency=state.fovTransparency
     local camera=Workspace.CurrentCamera
     if not camera then return end
     local mouse=UIS:GetMouseLocation()
@@ -433,15 +440,15 @@ local function render(dt)
             local part=hum and aimPart(entry,hum)
             local point,onScreen
             if part then point,onScreen=camera:WorldToViewportPoint(part.Position) end
-            if not root or not part or not filterCamera(entry) or not onScreen or point.Z<=0
-                or not visibleToCamera(entry,part,camera) then entry=nil end
+            if not root or not part or not filterCamera(entry) then entry=nil end
         end
         if not entry then resetCamera() else cameraTarget=entry end
         if cameraTarget then
             local _,hum=targetInfo(cameraTarget)
             local part,air=aimPart(cameraTarget,hum)
+            local point,onScreen=camera:WorldToViewportPoint(part.Position)
             local destination=predictedPosition(part,hum,air)
-            if (destination-camera.CFrame.Position).Magnitude>0.01 then
+            if onScreen and point.Z>0 and visibleToCamera(cameraTarget,part,camera) and (destination-camera.CFrame.Position).Magnitude>0.01 then
                 local alpha=state.smoothing<=0 and 1 or 1-math.exp(-dt*6/state.smoothing)
                 camera.CFrame=camera.CFrame:Lerp(CFrame.lookAt(camera.CFrame.Position,destination),alpha)
             end
@@ -453,38 +460,56 @@ local function render(dt)
         cameraStatus(cameraTarget and cameraTarget.name or 'Sem alvo',pingSeconds,predictionTime(false))
     end
 end
-local palette={bg=Color3.fromRGB(14,14,14),panel=Color3.fromRGB(25,25,25),edge=Color3.fromRGB(59,59,59),muted=Color3.fromRGB(158,158,158),white=Color3.fromRGB(235,235,235)}
+local palette={bg=Color3.fromRGB(36,36,34),panel=Color3.fromRGB(47,47,44),edge=Color3.fromRGB(98,98,94),muted=Color3.fromRGB(198,198,193),white=Color3.fromRGB(235,235,235)}
 local rootUI=create('Frame',{Name='Hub',AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.fromScale(0.5,0.5),Size=UDim2.fromOffset(620,650),BackgroundTransparency=1,Visible=false},gui)
 local uiScale=create('UIScale',{Name='UserScale',Scale=1},rootUI)
-local panel=create('CanvasGroup',{Name='UnifiedPanel',AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.fromScale(0.5,0.5),Size=UDim2.fromScale(1,1),BackgroundTransparency=1,GroupTransparency=1},rootUI)
+local panel=create('CanvasGroup',{Name='UnifiedPanel',AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.new(0.5,0,0.5,-22),Size=UDim2.new(1,0,1,44),BackgroundTransparency=1,GroupTransparency=1},rootUI)
+local surface=create('Frame',{Name='PanelSurface',Position=UDim2.fromOffset(0,44),Size=UDim2.new(1,0,1,-44),BackgroundTransparency=1},panel)
 local motionScale=create('UIScale',{Name='MotionScale',Scale=0.94},panel)
 local fitReadout=function() end
 local function fitUI()
     local camera=Workspace.CurrentCamera
     if camera then
-        local available=math.min((camera.ViewportSize.X-28)/620,(camera.ViewportSize.Y-60)/650)
+        local available=math.min((camera.ViewportSize.X-28)/620,(camera.ViewportSize.Y-60)/738)
         uiScale.Scale=math.max(0.1,math.min(state.uiSize,available))
         fitReadout(uiScale.Scale)
     end
 end
 -- Clip the lower half of a rounded rectangle, then continue with a straight body.
 -- No overlapping translucent fills: only the two upper corners are rounded.
-local topClip=create('Frame',{Name='TopCurveClip',Size=UDim2.new(1,0,0,40),BackgroundTransparency=1,ClipsDescendants=true},panel)
+local topClip=create('Frame',{Name='TopCurveClip',Size=UDim2.new(1,0,0,40),BackgroundTransparency=1,ClipsDescendants=true},surface)
 local topFill=create('Frame',{Name='TopCurve',Size=UDim2.new(1,0,0,80),BackgroundColor3=palette.bg,BackgroundTransparency=state.uiOpacity,BorderSizePixel=0},topClip)
 round(topFill,38);create('UIStroke',{Color=palette.edge,Thickness=1},topFill)
-local lowerFill=create('Frame',{Name='StraightBody',Position=UDim2.fromOffset(0,40),Size=UDim2.new(1,0,1,-40),BackgroundColor3=palette.bg,BackgroundTransparency=state.uiOpacity,BorderSizePixel=0},panel)
-for _,x in ipairs({0,1}) do create('Frame',{Position=UDim2.new(x,-x,0,40),Size=UDim2.new(0,1,1,-40),BackgroundColor3=palette.edge,BorderSizePixel=0},panel) end
-create('Frame',{Position=UDim2.new(0,0,1,-1),Size=UDim2.new(1,0,0,1),BackgroundColor3=palette.edge,BorderSizePixel=0},panel)
+local lowerFill=create('Frame',{Name='StraightBody',Position=UDim2.fromOffset(0,40),Size=UDim2.new(1,0,1,-40),BackgroundColor3=palette.bg,BackgroundTransparency=state.uiOpacity,BorderSizePixel=0},surface)
+for _,x in ipairs({0,1}) do create('Frame',{Position=UDim2.new(x,-x,0,40),Size=UDim2.new(0,1,1,-40),BackgroundColor3=palette.edge,BorderSizePixel=0},surface) end
+create('Frame',{Position=UDim2.new(0,0,1,-1),Size=UDim2.new(1,0,0,1),BackgroundColor3=palette.edge,BorderSizePixel=0},surface)
 local function region(name,x,y,w,h)
-    return create('Frame',{Name=name,Position=UDim2.fromOffset(x,y),Size=UDim2.fromOffset(w,h),BackgroundTransparency=1,BorderSizePixel=0},panel)
+    return create('Frame',{Name=name,Position=UDim2.fromOffset(x,y),Size=UDim2.fromOffset(w,h),BackgroundTransparency=1,BorderSizePixel=0},surface)
 end
 local header=region('Header',0,0,620,92)
 local sidebar=region('Navigation',10,94,600,46)
 local body=region('Content',10,142,600,462)
 local footer=region('Footer',10,610,600,34)
-local title=text(header,'EV',UDim2.fromOffset(100,0),UDim2.new(1,-200,0,84),64)
-title.Name='HubTitle';title.Font=Enum.Font.GothamBlack;title.TextXAlignment=Enum.TextXAlignment.Center;title.TextStrokeTransparency=0;title.TextStrokeColor3=Color3.new(0,0,0)
+local title=text(header,'EVINI',UDim2.fromOffset(100,-42),UDim2.new(1,-200,0,84),60)
+title.Name='HubTitle';title.Font=Enum.Font.Merriweather;title.TextXAlignment=Enum.TextXAlignment.Center;title.TextStrokeTransparency=0;title.TextStrokeColor3=Color3.new(0,0,0)
 create('UIStroke',{Color=Color3.new(0,0,0),Thickness=3},title)
+local titleArt=create('ImageLabel',{Name='TitleArtwork',Position=title.Position,Size=title.Size,BackgroundTransparency=1,ScaleType=Enum.ScaleType.Fit,Visible=false},header)
+-- Bevan is rendered as artwork; unsupported asset APIs retain the text fallback.
+task.spawn(function()
+    local assetLoader=type(getcustomasset)=='function' and getcustomasset or (type(getsynasset)=='function' and getsynasset)
+    if not assetLoader or type(writefile)~='function' then return end
+    local ok,asset=pcall(function()
+        local path='evini-title-bevan-v1.png'
+        if type(isfile)~='function' or not isfile(path) then
+            writefile(path,game:HttpGet('https://raw.githubusercontent.com/EDUVlNI/evini-loader/main/assets/evini-bevan-v1.png'))
+        end
+        return assetLoader(path)
+    end)
+    if not alive or not ok or type(asset)~='string' then return end
+    titleArt.Image=asset
+    pcall(function() ContentProvider:PreloadAsync({titleArt}) end)
+    if alive and titleArt.IsLoaded then titleArt.Visible=true;title.Visible=false end
+end)
 local hide=button(header,'−',UDim2.new(1,-90,0,28),UDim2.fromOffset(30,30));hide.Name='Hide';hide.TextSize=22
 local close=button(header,'×',UDim2.new(1,-52,0,28),UDim2.fromOffset(30,30));close.Name='Close';close.TextSize=22;close.BackgroundColor3=Color3.fromRGB(99,33,29)
 local smaller=button(header,'−',UDim2.fromOffset(22,30),UDim2.fromOffset(24,26));smaller.Name='SmallerUI'
@@ -498,7 +523,6 @@ end
 connect(smaller.Activated,function() setUISize(uiScale.Scale-0.05) end)
 connect(larger.Activated,function() setUISize(uiScale.Scale+0.05) end)
 connect(scaleReadout.Activated,function() setUISize(1) end)
-local blur=create('BlurEffect',{Name='EVINI_Blur',Size=0},Lighting)
 local animationVersion=0
 local activeTweens={}
 local destroyed=false
@@ -513,8 +537,7 @@ local function showUI(open,after)
     for _,t in ipairs(activeTweens) do t:Cancel() end
     activeTweens={}; uiBusy=true; uiOpen=open; resetCamera()
     rootUI.Visible=true; fitUI()
-    tween(blur,0.28,{Size=open and state.blur and state.blurSize or 0})
-    tween(panel,0.22,{GroupTransparency=open and 0 or 1,Position=open and UDim2.fromScale(0.5,0.5) or UDim2.new(0.5,0,0.5,14)})
+    tween(panel,0.22,{GroupTransparency=open and 0 or 1,Position=open and UDim2.new(0.5,0,0.5,-22) or UDim2.new(0.5,0,0.5,-8)})
     tween(motionScale,0.22,{Scale=(open or state.reduceMotion) and 1 or 0.94})
     task.delay(state.reduceMotion and 0 or 0.23,function()
         if not alive or version~=animationVersion then return end
@@ -525,12 +548,12 @@ end
 local pages,tabs={},{}
 local currentPage='Mira'
 local function page(name,index)
-    local frame=create('ScrollingFrame',{Name=name,Position=UDim2.fromOffset(14,12),Size=UDim2.new(1,-38,1,-24),BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=4,ScrollBarImageColor3=green,CanvasSize=UDim2.fromOffset(0,0),Visible=index==1},body)
+    local frame=create('ScrollingFrame',{Name=name,Position=UDim2.fromOffset(8,12),Size=UDim2.new(1,-16,1,-24),BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=4,ScrollBarImageColor3=green,CanvasSize=UDim2.fromOffset(0,0),Visible=index==1},body)
     frame.ScrollingDirection=Enum.ScrollingDirection.Y
     frame.VerticalScrollBarInset=Enum.ScrollBarInset.Always
     local content=create('Frame',{Name=name..'Content',Position=UDim2.fromOffset(2,2),Size=UDim2.new(1,-20,0,0),BackgroundTransparency=1,BorderSizePixel=0},frame)
     pages[name]={frame=content,scroll=frame,y=0};accent(frame,'ScrollBarImageColor3')
-    local b=button(sidebar,name,UDim2.fromOffset(8+(index-1)*147,5),UDim2.fromOffset(140,34)); b.Name='Tab_'..name; b.Font=Enum.Font.Gotham
+    local b=button(sidebar,name,UDim2.fromOffset(6+(index-1)*118,5),UDim2.fromOffset(112,34)); b.Name='Tab_'..name; b.Font=Enum.Font.Gotham
     tabs[name]=b
     connect(b.Activated,function()
         currentPage=name
@@ -538,8 +561,8 @@ local function page(name,index)
             if p.tabTween then p.tabTween:Cancel() end
             p.scroll.Visible=key==name;tabs[key].TextColor3=key==name and green or palette.muted
             if key==name then
-                p.scroll.Position=UDim2.fromOffset(14,state.reduceMotion and 12 or 17)
-                p.tabTween=TweenService:Create(p.scroll,TweenInfo.new(state.reduceMotion and 0 or 0.14,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Position=UDim2.fromOffset(14,12)})
+                p.scroll.Position=UDim2.fromOffset(8,state.reduceMotion and 12 or 17)
+                p.tabTween=TweenService:Create(p.scroll,TweenInfo.new(state.reduceMotion and 0 or 0.14,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{Position=UDim2.fromOffset(8,12)})
                 p.tabTween:Play()
             end
         end
@@ -548,11 +571,11 @@ local function page(name,index)
     return pages[name]
 end
 local camPage=page('Mira',1)
-local espPage=page('Visual',2)
-local playersPage=page('Jogadores',3)
-local settingsPage=page('Ajustes',4)
+local hitPage=page('Hitbox',2)
+local espPage=page('Visual',3)
+local playersPage=page('Jogadores',4)
+local settingsPage=page('Ajustes',5)
 local function subPage() return {frame=create('Frame',{BackgroundTransparency=1,Visible=false,Size=UDim2.new(1,0,0,0)},camPage.frame),y=0} end
-local hitPage=subPage()
 local predPage=subPage()
 local function slot(p,h)
     local y=p.y;p.y=y+h
@@ -754,9 +777,13 @@ field(predPage,'Base automática · segundos','autoBase',0,0.2,0.005)
 slider(predPage,'Previsão manual · segundos','prediction',0,0.5,0.001)
 
 switch(camPage,'Mostrar círculo do FOV','showFov')
+slider(camPage,'Transparência do FOV · 0–1','fovTransparency',0,1,0.05)
 slider(camPage,'Raio do FOV · pixels','fov',30,500,1)
 choice(camPage,'Parte do corpo','hitPart',{{'Head','Cabeça'},{'UpperTorso','Tronco'},{'LowerTorso','Tronco baixo'},{'HumanoidRootPart','Centro'}},function() cameraTarget=nil end)
-switch(camPage,'Verificar paredes','wallCheck')
+switch(camPage,'Pausar mira atrás de paredes','wallCheck')
+label(camPage,'Alvo mantido','Atrás de paredes ou fora da tela, a câmera pausa. Ao reaparecer, retoma o mesmo alvo. A tecla e Esc soltam.')
+switch(camPage,'Alternar cabeça e tronco','cycleParts')
+slider(camPage,'Intervalo da alternância · s','cycleInterval',0.3,3,0.1)
 switch(camPage,'Ignorar meu time','camTeam',function() cameraTarget=nil end)
 switch(camPage,'Incluir NPCs no lock','camNPC',function() cameraTarget=nil end)
 slider(camPage,'Suavização · 0 = instantâneo','smoothing',0,1,0.01)
@@ -787,7 +814,6 @@ end
 keyField('Ocultar / abrir hub','hide'); keyField('Tecla do cam lock','cam'); refreshKeys()
 local saveText=text(settingsPage.frame,persistenceStatus,UDim2.fromOffset(0,slot(settingsPage,38)),UDim2.new(1,0,0,32),11); saveText.Font=Enum.Font.Gotham;saveText.TextColor3=palette.muted
 persistenceReport=function(message) if alive then saveText.Text=message end end
-switch(settingsPage,'Blur ao abrir','blur',function() tween(blur,0.2,{Size=uiOpen and state.blur and state.blurSize or 0}) end)
 label(settingsPage,'COMPATIBILIDADE','Base R6 / R15 com Humanoid. Câmeras e personagens personalizados podem exigir adaptação. Fechar remove efeitos e restaura hitboxes.')
 local folds={}
 local baseHeight=camPage.y
@@ -802,7 +828,7 @@ local function arrangeFolds()
     camPage.frame.Size=UDim2.new(1,-20,0,y+10)
     camPage.scroll.CanvasSize=UDim2.fromOffset(0,y+14)
 end
-for _,definition in ipairs({{'Calibração avançada',predPage},{'Hitbox e filtros',hitPage}}) do
+for _,definition in ipairs({{'Calibração avançada',predPage}}) do
     local f={name=definition[1],page=definition[2],open=false}
     f.button=button(camPage.frame,'',UDim2.fromOffset(0,0),UDim2.new(1,0,0,32));f.button.Name=definition[1]
     table.insert(folds,f)
@@ -815,7 +841,7 @@ local function refreshAppearance()
     topFill.BackgroundTransparency=state.uiOpacity;lowerFill.BackgroundTransparency=state.uiOpacity
     for _,refresh in pairs(controlRefresh) do refresh() end
     for name,b in pairs(tabs) do b.TextColor3=name==currentPage and green or palette.muted end
-    fitUI();tween(blur,0.2,{Size=uiOpen and state.blur and state.blurSize or 0})
+    fitUI()
 end
 label(settingsPage,'Aparência')
 choice(settingsPage,'Contraste','accent',{{'Branco','Branco'},{'Cinza','Cinza claro'}},refreshAppearance)
@@ -826,7 +852,6 @@ controlRefresh.uiSize=function() refreshSize();fitUI() end
 refreshSizeControls=controlRefresh.uiSize
 switch(settingsPage,'Sons dos botões','uiSounds')
 slider(settingsPage,'Volume dos botões','soundVolume',0,0.6,0.05)
-field(settingsPage,'Intensidade do blur','blurSize',0,12,1,refreshAppearance)
 switch(settingsPage,'Reduzir animações','reduceMotion')
 switch(settingsPage,'Notificações de alvo','notifications')
 switch(settingsPage,'Avisar entradas e saídas','serverNotices')
@@ -905,7 +930,7 @@ function api.Destroy()
     RunService:UnbindFromRenderStep('EVINI_Camera')
     for _,item in pairs(roster) do item.connection:Disconnect() end
     aimFolder:Destroy()
-    restoreAll(); blur:Destroy(); overlays:Destroy(); gui:Destroy()
+    restoreAll(); overlays:Destroy(); gui:Destroy()
     espObjects={}; candidates={}; npcModels={};aimItems={}
     if env.EVINI==api then env.EVINI=nil end
 end
