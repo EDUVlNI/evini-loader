@@ -1,4 +1,4 @@
--- EVINI 4.1: fonte independente. Nao carrega o Nitrogen.
+-- EVINI 4.2: fonte independente. Nao carrega o Nitrogen.
 -- Alteracoes de hitbox sao locais; o servidor pode ignora-las.
 local Players = game:GetService('Players')
 local UIS = game:GetService('UserInputService')
@@ -12,6 +12,7 @@ assert(player, '[EVINI] Execute em um cliente com LocalPlayer.')
 local env = (type(getgenv) == 'function' and getgenv()) or _G
 if type(env.EVINI) == 'table' and type(env.EVINI.Destroy) == 'function' then pcall(env.EVINI.Destroy) end
 local state = {enabled=false, size=8, transparent=false, knockCheck=true, playerSelection={}, newPlayersSelected=true}
+state.painEnabled=false;state.painSize=8;state.painInvisible=false;state.painKnockCheck=true;state.painTarget='Torso'
 state.serverNotices=true; state.espPlayers=false; state.espEntities=false
 state.camEnabled=false; state.camNPC=false; state.wallCheck=true; state.camTeam=false
 state.fovTransparency=0.22;state.cycleParts=false;state.cycleInterval=0.8;state.fov=140; state.showFov=true; state.hitPart='Head'
@@ -28,7 +29,7 @@ local HttpService=game:GetService('HttpService')
 local settingsFile='evini-settings-'..tostring((game.GameId and game.GameId>0) and game.GameId or game.PlaceId or 0)..'.json'
 local defaults={}
 for k,v in pairs(state) do defaults[k]=v end
-local bounds={fovTransparency={0,1},cycleInterval={0.3,3},aimLength={10,500},uiDarkness={0,1},uiOpacity={0,0.8},soundVolume={0,0.6},uiSize={0.45,1.5},size={2,30},fov={30,500},prediction={0,0.5},airPrediction={0,0.5},autoPredMath={100,1000},autoBase={0,0.2},smoothing={0,1}}
+local bounds={painSize={2,30},fovTransparency={0,1},cycleInterval={0.3,3},aimLength={10,500},uiDarkness={0,1},uiOpacity={0,0.8},soundVolume={0,0.6},uiSize={0.45,1.5},size={2,30},fov={30,500},prediction={0,0.5},airPrediction={0,0.5},autoPredMath={100,1000},autoBase={0,0.2},smoothing={0,1}}
 local options={accent={Branco=true,Cinza=true},hitPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true},airPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true}}
 local persistenceStatus='Salvamento indisponível neste executor'
 local persistenceReport=function() end
@@ -45,6 +46,7 @@ local function loadSettings()
             if type(value)=='boolean' then state[key]=value
             elseif bounds[key] and value==value then state[key]=math.clamp(value,bounds[key][1],bounds[key][2])
             elseif options[key] and options[key][value] then state[key]=value
+            elseif key=='painTarget' and #value<=180 and (value=='Torso' or value=='Head' or value:sub(1,5)=='part:') then state[key]=value
             elseif key=='playerSelection' then
                 local count=0
                 for id,enabled in pairs(value) do
@@ -201,6 +203,128 @@ local function apply()
     local stale={}
     for part in pairs(originals) do if not active[part] then table.insert(stale,part) end end
     for _,part in ipairs(stale) do restore(part) end
+end
+
+-- Independent Painhood adapter: existing body/custom parts only; never RootPart.
+-- Local geometry is not proof of server-side hit registration.
+local pain={report=function() end}
+do
+local painOriginals={}
+local painBlocked=setmetatable({}, {__mode='k'})
+local painStatus='Desligado'
+local function inPainhood()
+    return game.PlaceId==138308349761110 or game.GameId==10770257767
+end
+local function painPartAllowed(part,character)
+    if not part or not part:IsA('BasePart') or part.Name=='HumanoidRootPart' then return false end
+    local parent=part.Parent
+    while parent and parent~=character do
+        if parent:IsA('Accessory') or parent:IsA('Tool') then return false end
+        parent=parent.Parent
+    end
+    return parent==character
+end
+local function painResolve(character)
+    if state.painTarget=='Torso' then return character:FindFirstChild('UpperTorso') or character:FindFirstChild('Torso') end
+    if state.painTarget=='Head' then return character:FindFirstChild('Head') end
+    if state.painTarget:sub(1,5)~='part:' then return nil end
+    local node=character
+    for segment in state.painTarget:sub(6):gmatch('[^/]+') do
+        node=node and node:FindFirstChild(segment)
+        if not node then return nil end
+    end
+    return painPartAllowed(node,character) and node or nil
+end
+local function painRestore(part)
+    local saved=painOriginals[part];if not saved then return end
+    pcall(function()
+        part.Size=saved.size;part.Transparency=saved.transparency;part.CanCollide=saved.canCollide
+    end)
+    painOriginals[part]=nil
+end
+local function painRestoreAll()
+    local list={};for part in pairs(painOriginals) do list[#list+1]=part end
+    for _,part in ipairs(list) do painRestore(part) end
+end
+local function sameSize(a,b)
+    return math.abs(a.X-b.X)<0.01 and math.abs(a.Y-b.Y)<0.01 and math.abs(a.Z-b.Z)<0.01
+end
+local function applyPain()
+    if closing or not state.painEnabled or not inPainhood() then
+        painRestoreAll()
+        painStatus=not inPainhood() and 'Disponível apenas no jogo do link informado' or 'Desligado'
+        pain.report(painStatus);return
+    end
+    local active={};local changed,blocked,missing=0,0,0
+    local requested=Vector3.new(state.painSize,state.painSize,state.painSize)
+    for _,target in ipairs(Players:GetPlayers()) do
+        if target~=player and not departing[target] and selectedPlayer(target) then
+            local character=target.Character
+            local hum=character and character:FindFirstChildOfClass('Humanoid')
+            local effects=character and character:FindFirstChild('BodyEffects')
+            local unavailableNow=not hum or hum.Health<=0 or hum:GetState()==Enum.HumanoidStateType.Dead or flagOn(effects,'Dead') or (state.painKnockCheck and flagOn(effects,'K.O'))
+            if not unavailableNow then
+                local part=painResolve(character)
+                if painPartAllowed(part,character) then
+                    if painBlocked[part] then blocked=blocked+1
+                    else
+                        local saved=painOriginals[part]
+                        if not saved then
+                            saved={size=part.Size,transparency=part.Transparency,canCollide=part.CanCollide,reverts=0};painOriginals[part]=saved
+                        end
+                        if saved.expected and not sameSize(part.Size,saved.expected) then saved.reverts=saved.reverts+1 end
+                        if saved.reverts>=3 then
+                            painBlocked[part]=true;blocked=blocked+1;painRestore(part)
+                        else
+                            local ok=pcall(function()
+                                if not sameSize(part.Size,requested) then part.Size=requested end
+                                part.Transparency=state.painInvisible and 1 or saved.transparency
+                                part.CanCollide=false
+                            end)
+                            if ok then active[part]=true;saved.expected=requested;changed=changed+1
+                            else painBlocked[part]=true;blocked=blocked+1;painRestore(part) end
+                        end
+                    end
+                else missing=missing+1 end
+            end
+        end
+    end
+    local stale={};for part in pairs(painOriginals) do if not active[part] then stale[#stale+1]=part end end
+    for _,part in ipairs(stale) do painRestore(part) end
+    painStatus=string.format('%d peças ampliadas localmente · %d sem a peça',changed,missing)
+    if blocked>0 then painStatus=painStatus..string.format(' · %d bloqueadas/revertidas pelo jogo',blocked) end
+    pain.report(painStatus)
+end
+local function resetPain()
+    painRestoreAll();painBlocked=setmetatable({}, {__mode='k'});applyPain()
+end
+local function painChoices()
+    local choices={{'Torso','Tronco (R6/R15)'},{'Head','Cabeça'}}
+    local seen={}
+    if not inPainhood() then return choices end
+    for _,target in ipairs(Players:GetPlayers()) do
+        local character=target~=player and target.Character
+        if character then
+            for _,part in ipairs(character:GetDescendants()) do
+                if #choices>=50 then return choices end
+                if painPartAllowed(part,character) then
+                    local segments={};local node=part;local valid=true
+                    while node~=character do
+                        if node.Name:find('/',1,true) then valid=false;break end
+                        table.insert(segments,1,node.Name);node=node.Parent
+                    end
+                    local path=table.concat(segments,'/')
+                    if valid and #path<=175 and not seen[path] then
+                        seen[path]=true;choices[#choices+1]={'part:'..path,path}
+                    end
+                end
+            end
+        end
+    end
+    return choices
+end
+
+pain.apply=applyPain;pain.reset=resetPain;pain.restoreAll=painRestoreAll;pain.choices=painChoices
 end
 -- ESP / camera: APIs nativas, sem alterar remotes de armas ou baixar codigo externo.
 local candidates,npcModels,espObjects={},{},{}
@@ -525,8 +649,8 @@ local sidebar=region('Navigation',10,94,600,46)
 local body=region('Content',10,142,600,462)
 local footer=region('Footer',10,610,600,34)
 header.Size=UDim2.new(1,0,0,76)
-sidebar.Position=UDim2.fromOffset(10,68);sidebar.Size=UDim2.new(1,-20,0,46)
-body.Position=UDim2.fromOffset(10,116);body.Size=UDim2.new(1,-20,1,-158)
+sidebar.Position=UDim2.fromOffset(10,68);sidebar.Size=UDim2.new(1,-20,0,86)
+body.Position=UDim2.fromOffset(10,156);body.Size=UDim2.new(1,-20,1,-198)
 footer.Position=UDim2.new(0,10,1,-38);footer.Size=UDim2.new(1,-20,0,34)
 local title=text(header,'EVINI',UDim2.fromOffset(100,-42),UDim2.new(1,-200,0,84),60)
 title.Name='HubTitle';title.Font=Enum.Font.GothamBlack;title.TextXAlignment=Enum.TextXAlignment.Center;title.TextStrokeTransparency=0;title.TextStrokeColor3=Color3.new(0,0,0)
@@ -590,7 +714,7 @@ local function page(name,index)
     frame.VerticalScrollBarInset=Enum.ScrollBarInset.Always
     local content=create('Frame',{Name=name..'Content',Position=UDim2.fromOffset(3,2),Size=UDim2.new(1,-9,0,0),BackgroundTransparency=1,BorderSizePixel=0},frame)
     pages[name]={frame=content,scroll=frame,y=0};accent(frame,'ScrollBarImageColor3')
-    local b=button(sidebar,name,UDim2.new((index-1)/5,3,0,5),UDim2.new(0.2,-6,0,34)); b.Name='Tab_'..name; b.Font=Enum.Font.GothamMedium;b.TextSize=14
+    local b=button(sidebar,name,UDim2.new(((index-1)%3)/3,3,0,5+math.floor((index-1)/3)*40),UDim2.new(1/3,-6,0,34)); b.Name='Tab_'..name; b.Font=Enum.Font.GothamMedium;b.TextSize=14
     tabs[name]=b
     create('Frame',{Name='SelectedTabHighlight',Position=UDim2.fromOffset(2,2),Size=UDim2.new(1,-4,0,2),BackgroundColor3=Color3.fromRGB(170,170,164),BorderSizePixel=0,Visible=false},b)
     connect(b.Activated,function()
@@ -607,9 +731,10 @@ local function page(name,index)
 end
 local camPage=page('Mira',1)
 local hitPage=page('Hitbox',2)
-local espPage=page('Visual',3)
-local playersPage=page('Jogadores',4)
-local settingsPage=page('Ajustes',5)
+page('Hitbox (Painhood)',3)
+local espPage=page('Visual',4)
+local playersPage=page('Jogadores',5)
+local settingsPage=page('Ajustes',6)
 local function subPage() return {frame=create('Frame',{BackgroundTransparency=1,Visible=false,Size=UDim2.new(1,0,0,0)},camPage.frame),y=0} end
 local predPage=subPage()
 local function slot(p,h)
@@ -698,6 +823,38 @@ switch(hitPage,'Ativar expansão','enabled',apply)
 switch(hitPage,'Box invisível','transparent',apply)
 switch(hitPage,'Knock Check','knockCheck',function() apply(); cameraTarget=nil end)
 field(hitPage,'Tamanho · 2–30 studs','size',2,30,0.1,apply)
+
+do
+local painPage=pages['Hitbox (Painhood)']
+label(painPage,'HITBOX (PAINHOOD)','Expansão alternativa de peças existentes. Não usa a peça da hitbox original. Acertos dependem do servidor.')
+switch(painPage,'Ativar Painhood','painEnabled',pain.reset)
+switch(painPage,'Peça invisível','painInvisible',pain.apply)
+switch(painPage,'Knock Check','painKnockCheck',pain.apply)
+field(painPage,'Tamanho · 2–30 studs','painSize',2,30,0.1,pain.apply)
+local painOptions=pain.choices()
+local painIndex=1
+local painY=slot(painPage,64)
+local painSelector=button(painPage.frame,'',UDim2.fromOffset(0,painY),UDim2.new(1,0,0,54));painSelector.Name='PainTarget';painSelector.TextWrapped=true
+local function refreshPainTarget()
+    local caption='Não encontrada: '..state.painTarget
+    for i,option in ipairs(painOptions) do if option[1]==state.painTarget then painIndex=i;caption=option[2];break end end
+    painSelector.Text='Peça: '..caption..'  >'
+end
+connect(painSelector.Activated,function()
+    painIndex=painIndex%#painOptions+1;state.painTarget=painOptions[painIndex][1]
+    refreshPainTarget();pain.reset();queueSave()
+end)
+local painScanY=slot(painPage,42)
+local painScan=button(painPage.frame,'Atualizar lista de peças',UDim2.fromOffset(0,painScanY),UDim2.new(1,0,0,32));painScan.Name='PainScan'
+connect(painScan.Activated,function() painOptions=pain.choices();painIndex=1;refreshPainTarget() end)
+local painStatusY=slot(painPage,72)
+local painStatusLabel=text(painPage.frame,'Desligado',UDim2.fromOffset(0,painStatusY),UDim2.new(1,-4,0,68),12);painStatusLabel.Name='PainStatus'
+pain.report=function(value) painStatusLabel.Text=value end
+refreshPainTarget()
+label(painPage,'COMO USAR','Comece por Tronco. A lista mostra peças reais dos jogadores. Se o jogo reverter a mudança, a peça deixa de ser forçada.')
+label(painPage,'RESTAURAÇÃO','Desativar restaura tamanho, transparência e colisão. A seleção da aba Jogadores também vale aqui.')
+
+end
 label(playersPage,'JOGADORES','✓ permite hitbox e cam lock. Desmarque para proteger a pessoa. A seleção fica salva pelo usuário.')
 switch(playersPage,'Selecionar novos jogadores','newPlayersSelected')
 local actionsY=slot(playersPage,44)
@@ -977,14 +1134,14 @@ function api.Destroy()
     RunService:UnbindFromRenderStep('EVINI_Camera')
     for _,item in pairs(roster) do item.connection:Disconnect() end
     aimFolder:Destroy()
-    restoreAll(); overlays:Destroy(); gui:Destroy()
+    restoreAll(); pain.restoreAll(); overlays:Destroy(); gui:Destroy()
     espObjects={}; candidates={}; npcModels={};aimItems={}
     if env.EVINI==api then env.EVINI=nil end
 end
 env.EVINI=api
 connect(close.Activated,function()
     if destroyed then return end
-    destroyed=true;closing=true;apply();resetCamera()
+    destroyed=true;closing=true;apply();pain.apply();resetCamera()
     showUI(false,api.Destroy)
     -- Fechamento nao pode ficar preso se outra tecla interromper a animacao.
     task.delay(0.6,function() if alive then api.Destroy() end end)
@@ -996,7 +1153,7 @@ connect(RunService.Heartbeat,function(dt)
     local cam=Workspace.CurrentCamera
     if cam and cam.ViewportSize~=lastViewport then lastViewport=cam.ViewportSize;fitUI() end
     elapsed=elapsed+dt; collectElapsed=collectElapsed+dt; pingElapsed=pingElapsed+dt
-    if elapsed>=0.1 then elapsed=0; apply() end
+    if elapsed>=0.1 then elapsed=0; apply();pain.apply() end
     if collectElapsed>=0.3 then collectElapsed=0; collectCandidates() end
     if pingElapsed>=1 then
         pingElapsed=0
@@ -1008,8 +1165,9 @@ connect(RunService.Heartbeat,function(dt)
 end)
 collectCandidates()
 RunService:BindToRenderStep('EVINI_Camera',Enum.RenderPriority.Camera.Value+1,render)
-apply()
+apply();pain.apply()
 -- Emblema da crew antes da montagem do hub.
+;(function()
 local splash=create('ImageLabel',{Name='CrewIntro',AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.fromScale(0.5,0.5),Size=UDim2.fromOffset(140,140),BackgroundTransparency=1,Image='rbxthumb://type=GroupIcon&id=8440749&w=420&h=420',ImageTransparency=1,ScaleType=Enum.ScaleType.Fit},gui)
 local introDone=false
 local function endIntro()
@@ -1022,4 +1180,5 @@ task.spawn(function()
     if not alive or introDone then return end
     endIntro()
 end)
+end)()
 return api

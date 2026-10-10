@@ -1,10 +1,25 @@
-# EVINI 4.1
+# EVINI 4.2
 
 Hub independente inspirado nas capturas das configurações do Da Hood: painel único translúcido, somente cantos superiores arredondados, base reta, título EV centralizado, abas horizontais, interruptores verdes e botão de fechar vermelho. Não carrega Nitrogen ou Azure.
 
 ```lua
 loadstring(game:HttpGet("https://raw.githubusercontent.com/EDUVlNI/evini-loader/main/main.lua"))()
 ```
+
+## Hitbox (Painhood) — 4.2
+
+Nova aba independente da **Hitbox** original. A função original de expansão do HumanoidRootPart permanece intacta. As seis abas usam duas linhas para manter os nomes legíveis em janelas menores.
+
+- Ative **Ativar Painhood** no jogo informado pelo usuário: place `138308349761110`, universo `10770257767`.
+- O padrão **Tronco (R6/R15)** redimensiona UpperTorso ou Torso existentes. **Peça** alterna entre cabeça e peças reais encontradas nos personagens; **Atualizar lista de peças** refaz essa leitura. Uma peça listada não é necessariamente usada pelo servidor para registrar acertos.
+- Tamanho numérico próprio, invisibilidade própria e Knock Check próprio. A seleção de jogadores é compartilhada, mas os dois modos têm controles e restauração separados.
+- Não cria uma caixa fictícia. Nunca altera HumanoidRootPart por esta aba; também exclui ferramentas e acessórios. As duas hitboxes podem ficar ligadas sem disputar a mesma peça.
+- Restaura tamanho, transparência e colisão ao desativar, trocar de peça, desmarcar jogador, morrer, ficar K.O., trocar de personagem ou encerrar.
+- Após detectar três reversões do tamanho, interrompe as tentativas naquela peça e mostra o bloqueio no status. Desligar e ligar permite uma tentativa explícita. Não há promessa de contornar uma validação do servidor.
+
+**Limite importante:** a página pública do jogo não expõe seu código nem identifica a caixa cinza da captura. A implementação é uma alternativa de geometria local para testar, não uma confirmação de expansão da hitbox usada pelo servidor. Se o jogo calcula acertos com dimensões fixas ou no servidor, mudar o tamanho local pode não aumentar a área aceita. Não foi validada dentro de uma partida de Painhood.
+
+Compilação Luau e os testes simulados `tests/regression.py` e `tests/painhood.py` passaram. Cobrem coexistência com o modo original, seleção de peças aninhadas, restauração, reversões, persistência e restrição à experiência informada. O código original de `apply()` foi comparado e preservado integralmente.
 
 ## Jogadores
 
