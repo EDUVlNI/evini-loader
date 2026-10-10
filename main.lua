@@ -1,4 +1,4 @@
--- EVINI 4.2: fonte independente. Nao carrega o Nitrogen.
+-- EVINI 4.3: fonte independente. Nao carrega o Nitrogen.
 -- Alteracoes de hitbox sao locais; o servidor pode ignora-las.
 local Players = game:GetService('Players')
 local UIS = game:GetService('UserInputService')
@@ -238,7 +238,8 @@ end
 local function painRestore(part)
     local saved=painOriginals[part];if not saved then return end
     pcall(function()
-        part.Size=saved.size;part.Transparency=saved.transparency;part.CanCollide=saved.canCollide
+        part.Size=saved.size;part.Transparency=saved.transparency
+        part.Massless=saved.massless;part.RootPriority=saved.rootPriority;part.CanCollide=saved.canCollide
     end)
     painOriginals[part]=nil
 end
@@ -266,18 +267,23 @@ local function applyPain()
             if not unavailableNow then
                 local part=painResolve(character)
                 if painPartAllowed(part,character) then
-                    if painBlocked[part] then blocked=blocked+1
+                    if painBlocked[part] or part.Anchored or part.AssemblyRootPart==part then
+                        if painOriginals[part] then painRestore(part);painBlocked[part]=true end
+                        blocked=blocked+1
                     else
                         local saved=painOriginals[part]
                         if not saved then
-                            saved={size=part.Size,transparency=part.Transparency,canCollide=part.CanCollide,reverts=0};painOriginals[part]=saved
+                            saved={size=part.Size,transparency=part.Transparency,canCollide=part.CanCollide,massless=part.Massless,rootPriority=part.RootPriority,root=part.AssemblyRootPart,reverts=0};painOriginals[part]=saved
                         end
                         if saved.expected and not sameSize(part.Size,saved.expected) then saved.reverts=saved.reverts+1 end
-                        if saved.reverts>=3 then
+                        if saved.reverts>=3 or (saved.root and part.AssemblyRootPart~=saved.root) then
                             painBlocked[part]=true;blocked=blocked+1;painRestore(part)
                         else
                             local ok=pcall(function()
+                                -- Avoid promoting the enlarged torso to the assembly root.
+                                part.Massless=true;part.RootPriority=-127;part.CanCollide=false
                                 if not sameSize(part.Size,requested) then part.Size=requested end
+                                if saved.root and part.AssemblyRootPart~=saved.root then error("Raiz física alterada") end
                                 part.Transparency=state.painInvisible and 1 or saved.transparency
                                 part.CanCollide=false
                             end)
@@ -292,7 +298,7 @@ local function applyPain()
     local stale={};for part in pairs(painOriginals) do if not active[part] then stale[#stale+1]=part end end
     for _,part in ipairs(stale) do painRestore(part) end
     painStatus=string.format('%d peças ampliadas localmente · %d sem a peça',changed,missing)
-    if blocked>0 then painStatus=painStatus..string.format(' · %d bloqueadas/revertidas pelo jogo',blocked) end
+    if blocked>0 then painStatus=painStatus..string.format(' · %d bloqueadas (física/reversão)',blocked) end
     pain.report(painStatus)
 end
 local function resetPain()

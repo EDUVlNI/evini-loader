@@ -26,6 +26,25 @@ custom=makePart(customFolder,'BodyBox',Vector3.new(0,0,0));custom.Transparency=.
 accessory=attach(enemy.Character,'Hat',Instance.new('Accessory'));accessoryPart=makePart(accessory,'Handle',Vector3.new(0,0,0))
 files={};function writefile(path,data) files[path]=data end;function readfile(path) assert(files[path]);return files[path] end
 ''')
+# Minimal root-election model: size can promote a non-massless body part.
+# This is a targeted regression model, not a Roblox physics simulation.
+lua.execute(r'''
+for _,p in ipairs(players.list) do
+ for _,part in ipairs(p.Character:GetDescendants()) do
+  if part:IsA('BasePart') then
+   part.Massless=false;part.RootPriority=0;part.Anchored=false
+   local root=p.Character.root
+   setmetatable(part,{__index=function(t,key)
+    if key=='AssemblyRootPart' then
+     if t.forcedRoot then return t.forcedRoot end
+     if not t.Massless and t.Size.X>=8 and t~=root then return t end
+     return root
+    end
+   end})
+  end
+ end
+end
+''')
 source=(base.parent/'main.lua').read_text()
 lua.execute(source)
 lua.execute(r'''
@@ -38,11 +57,15 @@ assert(find('Hitbox (Painhood)').Visible and not find('Hitbox').Visible,'separat
 find('painEnabled').Activated:Fire()
 assert(enemy.Character.torso.Size.X==8 and friend.Character.torso.Size.X==8,'actual torso geometry expanded')
 assert(enemy.Character.root.Size==originalRoot and not s.enabled,'legacy root untouched')
+assert(enemy.Character.torso.Massless and enemy.Character.torso.RootPriority==-127,'no mass added, reduced root priority')
+assert(enemy.Character.torso.AssemblyRootPart==enemy.Character.root,'enlarged torso does not become physical root')
+assert(not enemy.Character.torso.Anchored,'never anchor a character')
 assert(me.Character.torso.Size.X==2,'local player excluded')
 find('enabled').Activated:Fire()
 assert(enemy.Character.root.Size.X==8,'original hitbox still functional concurrently')
 find('painEnabled').Activated:Fire()
 assert(enemy.Character.torso.Size.X==2 and enemy.Character.root.Size.X==8,'Painhood disable preserves original mode')
+assert(not enemy.Character.torso.Massless and enemy.Character.torso.RootPriority==0,'restore physical properties')
 find('painEnabled').Activated:Fire()
 find('enabled').Activated:Fire()
 assert(enemy.Character.root.Size.X==2 and enemy.Character.torso.Size.X==8,'original disable preserves Painhood')
@@ -64,6 +87,14 @@ for i=1,3 do custom.Size=Vector3.new(2,2,1);run.Heartbeat:Fire(.11) end
 assert(find('PainStatus').Text:find('1 bloqueadas',1,true),'reversion reported')
 run.Heartbeat:Fire(.11);assert(custom.Size.X==2 and custom.Transparency==.55,'blocked part restored and not forced')
 find('painEnabled').Activated:Fire();find('painEnabled').Activated:Fire();assert(custom.Size.X==12,'explicit retry after toggle')
+-- Unexpected root change restores instead of fighting the live assembly.
+custom.forcedRoot=enemy.Character.head;run.Heartbeat:Fire(.11)
+assert(custom.Size.X==2 and not custom.Massless and custom.RootPriority==0,'unexpected root change rolls back')
+custom.forcedRoot=nil;run.Heartbeat:Fire(.11);assert(custom.Size.X==2,'unsafe part stays blocked')
+find('painEnabled').Activated:Fire();find('painEnabled').Activated:Fire();assert(custom.Size.X==12,'explicit physics retry')
+-- A pre-anchored part is never enlarged or unanchored.
+custom.Anchored=true;run.Heartbeat:Fire(.11);assert(custom.Size.X==2 and custom.Anchored,'anchored part skipped without changing anchoring')
+custom.Anchored=false;find('painEnabled').Activated:Fire();find('painEnabled').Activated:Fire()
 -- Root and accessories cannot be selected even via the exposed settings table.
 s.painTarget='part:HumanoidRootPart';run.Heartbeat:Fire(.11)
 assert(enemy.Character.root.Size.X==2 and custom.Size.X==2,'root excluded and prior custom restored')
@@ -95,4 +126,4 @@ assert(enemy.Character.torso.Size.X==2 and custom.Size.X==2,'other experience ga
 assert(find('PainStatus').Text:find('apenas no jogo',1,true),'wrong game status')
 EVINI.Destroy()
 ''')
-print('PASS: separate tabs/modes, real nested part selection, selection/KO/death/respawn restoration, reversion detection, persistence and game gating.')
+print('PASS: physical root stability, mass/priority restore and anchored guard; separate tabs/modes, real nested part selection, selection/KO/death/respawn restoration, reversion detection, persistence and game gating.')

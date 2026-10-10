@@ -1,10 +1,16 @@
-# EVINI 4.2
+# EVINI 4.3
 
 Hub independente inspirado nas capturas das configurações do Da Hood: painel único translúcido, somente cantos superiores arredondados, base reta, título EV centralizado, abas horizontais, interruptores verdes e botão de fechar vermelho. Não carrega Nitrogen ou Azure.
 
 ```lua
 loadstring(game:HttpGet("https://raw.githubusercontent.com/EDUVlNI/evini-loader/main/main.lua"))()
 ```
+
+## Correção Painhood — 4.3
+
+A expansão agora define a peça como `Massless` e reduz seu `RootPriority` antes de alterar o tamanho. Isso evita que o volume ampliado ganhe massa ou passe a ser escolhido como raiz física apenas por seu tamanho. Se a raiz mudar, o modo restaura e bloqueia aquela peça; peças já ancoradas ou que já são a raiz não são expandidas. Não escreve posição, velocidade, Anchored ou juntas. A Hitbox original permanece intacta.
+
+Massa e prioridade originais também são restauradas ao desligar, trocar de alvo, morrer ou encerrar. O teste de regressão modela a troca de raiz por tamanho e a restauração; ele não confirma movimento/replicação dentro do Painhood. A causa do congelamento relatado é uma hipótese consistente com as [regras de assemblies do Roblox](https://create.roblox.com/docs/physics/assemblies), ainda dependente de confirmação em jogo.
 
 ## Hitbox (Painhood) — 4.2
 
