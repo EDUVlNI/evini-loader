@@ -1,4 +1,4 @@
-# EVINI 4.4
+# EVINI 4.5
 
 Hub independente inspirado nas capturas das configurações do Da Hood: painel único translúcido, somente cantos superiores arredondados, base reta, título EV centralizado, abas horizontais, interruptores verdes e botão de fechar vermelho. Não carrega Nitrogen ou Azure.
 
@@ -6,7 +6,20 @@ Hub independente inspirado nas capturas das configurações do Da Hood: painel �
 loadstring(game:HttpGet("https://raw.githubusercontent.com/EDUVlNI/evini-loader/main/main.lua"))()
 ```
 
-## Triggerbot — 4.4
+## Trigger por corpo sob o cursor — 4.5
+
+**Habilite o trigger, equipe a arma e esconda o painel.** O padrão agora é **Automático + Corpo sob cursor**, sem segurar T e sem atraso inicial. A detecção lança um raio da câmera pela posição do mouse e verifica se a primeira peça atingida pertence ao corpo de um jogador válido, em vez de verificar apenas o centro do tronco dentro de um quadrado. Braços, pernas, cabeça e tronco podem acionar. Ferramentas e acessórios não acionam. [Referência de raycasting](https://create.roblox.com/docs/workspace/raycasting).
+
+- Por padrão, envia **um clique por entrada no personagem**. Permanecer sobre ele ou passar de um braço para uma perna do mesmo personagem não gera outro clique. Saia do corpo e entre novamente, ou ative **Repetir enquanto no alvo**. A recarga da ferramenta não conta como nova entrada.
+- **T** pausa/retoma o automático. **Esc**, perda de foco, digitação fora do painel e morte/K.O. local suspendem até reativação explícita. Abrir o painel pausa os disparos; o modo automático habilitado na interface funciona ao fechá-la. Reexecutar não restaura o estado armado.
+- O indicador pequeno no cursor e o status **EVINI · TRIGGER** ficam visíveis com o painel fechado quando os indicadores estão ligados e os visuais globais não estão ocultos. O status distingue alvo detectado, solicitação de clique enviada, arma indisponível e executor sem suporte.
+- **Clique (executor)** tenta `mouse1click`. Na ausência dessa função, usa `mouse1press` e `mouse1release` juntos, com liberação após 0,02 s ou imediatamente ao desarmar/fechar. Sem essas capacidades, informa o bloqueio. **Ativar Tool** continua como opção manual alternativa.
+- A área quadrada configurável continua disponível no modo **Área quadrada**. O tamanho dela não afeta o modo **Corpo sob cursor**. Não move a câmera, não redireciona projéteis e não modifica nenhuma das duas hitboxes.
+- Preferências da versão 4.4 migram para esse novo padrão, começando com o trigger desligado para você habilitar. As preferências de hitbox permanecem preservadas.
+
+Compilação e testes simulados passaram, incluindo corpo/entrada/saída, paredes, filtros, indicador, fallback pressionar/soltar e migração. O raycast considera apenas peças consultáveis pelo cliente (`CanQuery`); não prova que o executor conseguiu gerar um clique real nem que o servidor aceitou um tiro. Essas etapas ainda precisam de teste no jogo.
+
+## Triggerbot — 4.4 (versão anterior)
 
 Aba separada, sem modificar as duas hitboxes. **Habilite o triggerbot, equipe sua arma, esconda o painel com L e segure T**. A tecla é editável na própria aba. Em modo ligar/desligar, uma pressão arma e outra desarma. Esc, abertura do painel, digitação, morte/K.O. local ou perda de foco desarmam; fechar o painel ou recuperar foco não rearma automaticamente.
 

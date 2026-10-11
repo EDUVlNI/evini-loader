@@ -1,4 +1,4 @@
--- EVINI 4.4: fonte independente. Nao carrega o Nitrogen.
+-- EVINI 4.5: fonte independente. Nao carrega o Nitrogen.
 -- Alteracoes de hitbox sao locais; o servidor pode ignora-las.
 local Players = game:GetService('Players')
 local UIS = game:GetService('UserInputService')
@@ -22,9 +22,10 @@ state.extraDarkTheme=true;state.adjustableSmoke=true;state.uiDarkness=1;state.de
 state.camMarker=false;state.camTracer=false;state.hideVisuals=false
 state.aimViewer=false;state.aimEstimate=false;state.aimLength=120
 state.hideKeyName='L'; state.camKeyName='Q'
-state.triggerEnabled=false;state.triggerKeyName='T';state.triggerMode='hold';state.triggerSize=32
+state.triggerEnabled=false;state.triggerKeyName='T';state.triggerMode='auto';state.triggerSize=32
 state.triggerWalls=true;state.triggerShow=true;state.triggerTeam=false;state.triggerKnock=true
-state.triggerDelay=0.08;state.triggerInterval=0.15;state.triggerPart='UpperTorso';state.triggerMethod='click'
+state.triggerBodyVersion=true;state.triggerDetect='body';state.triggerRepeat=false
+state.triggerDelay=0;state.triggerInterval=0.15;state.triggerPart='UpperTorso';state.triggerMethod='click'
 local closing=false
 local alive=true
 -- Preferencias locais por experiencia. JSON validado, nunca executado.
@@ -33,7 +34,7 @@ local settingsFile='evini-settings-'..tostring((game.GameId and game.GameId>0) a
 local defaults={}
 for k,v in pairs(state) do defaults[k]=v end
 local bounds={triggerSize={4,300},triggerDelay={0,0.5},triggerInterval={0.05,1},painSize={2,30},fovTransparency={0,1},cycleInterval={0.3,3},aimLength={10,500},uiDarkness={0,1},uiOpacity={0,0.8},soundVolume={0,0.6},uiSize={0.45,1.5},size={2,30},fov={30,500},prediction={0,0.5},airPrediction={0,0.5},autoPredMath={100,1000},autoBase={0,0.2},smoothing={0,1}}
-local options={triggerMode={hold=true,toggle=true},triggerPart={Head=true,UpperTorso=true,HumanoidRootPart=true},triggerMethod={click=true,tool=true},accent={Branco=true,Cinza=true},hitPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true},airPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true}}
+local options={triggerDetect={body=true,square=true},triggerMode={auto=true,hold=true,toggle=true},triggerPart={Head=true,UpperTorso=true,HumanoidRootPart=true},triggerMethod={click=true,tool=true},accent={Branco=true,Cinza=true},hitPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true},airPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true}}
 local persistenceStatus='Salvamento indisponível neste executor'
 local persistenceReport=function() end
 local canSave=type(writefile)=='function' and type(readfile)=='function'
@@ -66,6 +67,10 @@ local function loadSettings()
     if state.hideKeyName==state.camKeyName then state.hideKeyName='L';state.camKeyName='Q' end
     if state.triggerKeyName==state.hideKeyName or state.triggerKeyName==state.camKeyName then
         for _,key in ipairs({'T','Y','U','P'}) do if key~=state.hideKeyName and key~=state.camKeyName then state.triggerKeyName=key;break end end
+    end
+    if data.settings.triggerBodyVersion~=true then
+        state.triggerEnabled=false;state.triggerMode='auto';state.triggerDetect='body';state.triggerRepeat=false
+        state.triggerDelay=0;state.triggerShow=true;state.triggerMethod='click'
     end
     persistenceStatus='Configurações restauradas'
 end
@@ -494,29 +499,33 @@ local uiBusy=false
 
 local trigger={}
 do
-    local armed=false
-    local focused=true
+    local armed,autoPaused,focused=false,true,true
     local clock,lastShot,stableSince=0,-math.huge,0
-    local pendingTarget=nil
-    local fault=nil
-    local heldTool=nil
-    local heldVersion=0
-    local function releaseTool()
+    local pendingTarget,entryFired,fault=nil,false,nil
+    local heldTool,heldMouse,heldVersion=nil,false,0
+    local function releaseInput()
         heldVersion=heldVersion+1
         local tool=heldTool;heldTool=nil
         if tool then pcall(function() tool:Deactivate() end) end
+        if heldMouse then heldMouse=false;pcall(mouse1release) end
     end
     local report=function() end
     local square=create('Frame',{Name='TriggerSquare',AnchorPoint=Vector2.new(0.5,0.5),BackgroundTransparency=1,BorderSizePixel=0,Visible=false},overlays)
-    local outline=create('UIStroke',{Color=Color3.fromRGB(220,220,220),Thickness=1,Transparency=0.15},square)
-    local function status(value) report(value) end
-    function trigger.reset() releaseTool();armed=false;pendingTarget=nil;stableSince=clock;square.Visible=false end
+    local outline=create('UIStroke',{Color=Color3.fromRGB(220,220,220),Thickness=2,Transparency=0,ApplyStrokeMode=Enum.ApplyStrokeMode.Border},square)
+    local hud=text(overlays,'',UDim2.fromOffset(18,110),UDim2.fromOffset(360,56),13);hud.Name='TriggerHUD';hud.Visible=false;hud.TextStrokeTransparency=0
+    local function status(value) report(value);hud.Text='EVINI · TRIGGER\n'..value end
+    function trigger.reset(suspend)
+        releaseInput();armed=false;pendingTarget=nil;entryFired=false;stableSince=clock;square.Visible=false
+        if suspend then autoPaused=true end
+    end
+    function trigger.configure() fault=nil;autoPaused=false;trigger.reset() end
     function trigger.report(fn) report=fn end
     function trigger.press()
         if not state.triggerEnabled or uiOpen or uiBusy or capturing or not focused or UIS:GetFocusedTextBox() then return end
         fault=nil
-        if state.triggerMode=='toggle' then armed=not armed else armed=true end
-        pendingTarget=nil;stableSince=clock
+        if state.triggerMode=='auto' then autoPaused=not autoPaused
+        elseif state.triggerMode=='toggle' then armed=not armed else armed=true end
+        pendingTarget=nil;entryFired=false;stableSince=clock
     end
     function trigger.release() if state.triggerMode=='hold' then trigger.reset() end end
     local function viable(character)
@@ -524,20 +533,43 @@ do
         local effects=character and character:FindFirstChild('BodyEffects')
         return character and character.Parent and hum and hum.Health>0 and hum:GetState()~=Enum.HumanoidStateType.Dead and not flagOn(effects,'Dead') and not (state.triggerKnock and flagOn(effects,'K.O'))
     end
-    local function selectTarget(camera,mouse)
+    local function eligible(p)
+        return p and p~=player and not departing[p] and selectedPlayer(p) and viable(p.Character) and not (state.triggerTeam and not player.Neutral and not p.Neutral and player.Team and player.Team==p.Team)
+    end
+    local function bodyTarget(camera,mouse)
+        local ray=camera:ViewportPointToRay(mouse.X,mouse.Y)
+        local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Exclude
+        params.FilterDescendantsInstances={player.Character}
+        if not state.triggerWalls then
+            params.FilterType=Enum.RaycastFilterType.Include
+            params.FilterDescendantsInstances={}
+            for _,p in ipairs(Players:GetPlayers()) do if eligible(p) then table.insert(params.FilterDescendantsInstances,p.Character) end end
+        end
+        local hit=Workspace:Raycast(ray.Origin,ray.Direction*2000,params)
+        if not hit then return end
+        local node=hit.Instance
+        -- Only a real character body hit; tools/accessories do not trigger.
+        while node and node~=Workspace do
+            if node:IsA('Tool') or node:IsA('Accessory') then return end
+            if node:IsA('Model') then
+                local p=Players:GetPlayerFromCharacter(node)
+                if p then return eligible(p) and p or nil end
+            end
+            node=node.Parent
+        end
+    end
+    local function squareTarget(camera,mouse)
         local best,distance=nil,math.huge
         for _,p in ipairs(Players:GetPlayers()) do
-            if p~=player and not departing[p] and selectedPlayer(p) and viable(p.Character) then
-                local sameTeam=state.triggerTeam and not player.Neutral and not p.Neutral and player.Team and player.Team==p.Team
-                local part=not sameTeam and targetPart(p.Character,state.triggerPart)
+            if eligible(p) then
+                local part=targetPart(p.Character,state.triggerPart)
                 if part then
                     local point,onScreen=camera:WorldToViewportPoint(part.Position)
                     local dx,dy=point.X-mouse.X,point.Y-mouse.Y
                     if onScreen and point.Z>0 and math.abs(dx)<=state.triggerSize/2 and math.abs(dy)<=state.triggerSize/2 and dx*dx+dy*dy<distance then
                         local clear=true
                         if state.triggerWalls then
-                            local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Exclude
-                            params.FilterDescendantsInstances={player.Character}
+                            local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Exclude;params.FilterDescendantsInstances={player.Character}
                             local hit=Workspace:Raycast(camera.CFrame.Position,part.Position-camera.CFrame.Position,params)
                             clear=not hit or hit.Instance:IsDescendantOf(p.Character)
                         end
@@ -550,39 +582,50 @@ do
     end
     local function step(dt)
         clock=clock+dt
+        hud.Visible=state.triggerEnabled and state.triggerShow and not state.hideVisuals
         if not alive or closing or not state.triggerEnabled then trigger.reset();status('Desligado');return end
-        if not focused or uiOpen or uiBusy or capturing or UIS:GetFocusedTextBox() then trigger.reset();status('Pausado · interface, digitação ou foco');return end
-        if not viable(player.Character) then trigger.reset();status('Pausado · personagem indisponível');return end
+        if not focused or uiOpen or uiBusy or capturing or UIS:GetFocusedTextBox() then
+            trigger.reset(not focused or (not uiOpen and UIS:GetFocusedTextBox()~=nil and UIS:GetFocusedTextBox()~=false))
+            status('Pausado · interface, digitação ou foco');return
+        end
+        if not viable(player.Character) then trigger.reset(true);status('Pausado · personagem indisponível');return end
         local mouse=UIS:GetMouseLocation()
-        square.Position=UDim2.fromOffset(mouse.X,mouse.Y);square.Size=UDim2.fromOffset(state.triggerSize,state.triggerSize)
-        square.Visible=state.triggerShow and not state.hideVisuals
-        outline.Color=armed and Color3.fromRGB(90,205,125) or Color3.fromRGB(220,220,220)
-        if not armed then pendingTarget=nil;status(fault or ((state.triggerMode=='hold' and 'Segure ' or 'Aperte ')..state.triggerKeyName..' para ativar'));return end
-        local tool=player.Character:FindFirstChildOfClass('Tool')
-        if not tool or tool.Enabled==false then pendingTarget=nil;status('Equipe uma arma (Tool) habilitada');return end
-        if state.triggerMethod=='click' and type(mouse1click)~='function' then pendingTarget=nil;status('Clique indisponível no executor · tente Ativar Tool');return end
-        if UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then pendingTarget=nil;status('Pausado · disparo manual');return end
+        local active=state.triggerMode=='auto' and not autoPaused or state.triggerMode~='auto' and armed
+        square.Position=UDim2.fromOffset(mouse.X,mouse.Y)
+        local side=state.triggerDetect=='body' and 10 or state.triggerSize
+        square.Size=UDim2.fromOffset(side,side);square.Visible=state.triggerShow and not state.hideVisuals
+        outline.Color=active and Color3.fromRGB(90,205,125) or Color3.fromRGB(220,220,220)
+        if not active then pendingTarget=nil;status(fault or ((state.triggerMode=='hold' and 'Segure ' or 'Aperte ')..state.triggerKeyName..' para ativar'));return end
         local camera=Workspace.CurrentCamera;if not camera then pendingTarget=nil;return end
-        local target=selectTarget(camera,mouse)
-        if not target then pendingTarget=nil;status('Ativo · aguardando alvo no quadrado');return end
-        if pendingTarget~=target then pendingTarget=target;stableSince=clock end
-        status('Alvo: @'..target.Name)
+        local target
+        if state.triggerDetect=='body' then target=bodyTarget(camera,mouse) else target=squareTarget(camera,mouse) end
+        if not target then pendingTarget=nil;entryFired=false;status('Ativo · passe o cursor pelo corpo');return end
+        if pendingTarget~=target then pendingTarget=target;entryFired=false;stableSince=clock end
+        local tool=player.Character:FindFirstChildOfClass('Tool')
+        if not tool or tool.Enabled==false then status('Equipe uma arma habilitada / aguardando recarga');return end
+        local atomic=type(mouse1click)=='function'
+        local pair=type(mouse1press)=='function' and type(mouse1release)=='function'
+        if state.triggerMethod=='click' and not atomic and not pair then status('Executor sem clique/pressão · tente Ativar Tool');return end
+        if not heldMouse and UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then pendingTarget=nil;status('Pausado · disparo manual');return end
+        status('Corpo detectado: @'..target.Name)
+        if entryFired and not state.triggerRepeat then status('Clique enviado · saia do corpo para repetir');return end
         if clock-stableSince<state.triggerDelay or clock-lastShot<state.triggerInterval then return end
         lastShot=clock
         local ok,err=pcall(function()
-            if state.triggerMethod=='click' then mouse1click() else
-                releaseTool();heldTool=tool;local version=heldVersion
-                tool:Activate()
-                task.delay(0.02,function() if heldVersion==version and heldTool==tool then releaseTool() end end)
+            if state.triggerMethod=='click' and atomic then mouse1click() else
+                releaseInput();local version=heldVersion
+                if state.triggerMethod=='click' then heldMouse=true;mouse1press() else heldTool=tool;tool:Activate() end
+                task.delay(0.02,function() if heldVersion==version then releaseInput() end end)
             end
         end)
-        if not ok then trigger.reset();fault='Falha no disparo: '..tostring(err):sub(1,100);status(fault) end
+        if ok then entryFired=true;status('Clique enviado · @'..target.Name)
+        else trigger.reset(true);fault='Falha no clique: '..tostring(err):sub(1,100);status(fault) end
     end
-    connect(UIS.WindowFocusReleased,function() focused=false;trigger.reset() end)
+    connect(UIS.WindowFocusReleased,function() focused=false;trigger.reset(true) end)
     if UIS.WindowFocused then connect(UIS.WindowFocused,function() focused=true end) end
     RunService:BindToRenderStep('EVINI_Trigger',Enum.RenderPriority.Camera.Value+2,function(dt)
         local ok,err=pcall(step,dt)
-        if not ok then trigger.reset();fault='Trigger pausado: '..tostring(err):sub(1,100);status(fault) end
+        if not ok then trigger.reset(true);fault='Trigger pausado: '..tostring(err):sub(1,100);status(fault) end
     end)
 end
 
@@ -967,21 +1010,23 @@ end
 
 do
     local p=pages.Triggerbot
-    label(p,'TRIGGERBOT','Dispara quando a parte escolhida entra no quadrado do cursor. Não move a mira nem altera as hitboxes.')
-    switch(p,'Habilitar triggerbot','triggerEnabled',trigger.reset)
-    choice(p,'Ativação','triggerMode',{{'hold','Segurar tecla'},{'toggle','Ligar / desligar'}},trigger.reset)
-    field(p,'Lado do quadrado · pixels','triggerSize',4,300,1,trigger.reset)
-    switch(p,'Mostrar quadrado','triggerShow')
-    switch(p,'Verificar paredes','triggerWalls',trigger.reset)
-    switch(p,'Ignorar meu time','triggerTeam',trigger.reset)
-    switch(p,'Knock Check','triggerKnock',trigger.reset)
-    choice(p,'Parte de referência','triggerPart',{{'UpperTorso','Tronco'},{'Head','Cabeça'},{'HumanoidRootPart','Centro'}},trigger.reset)
-    field(p,'Atraso inicial · segundos','triggerDelay',0,0.5,0.01,trigger.reset)
-    field(p,'Intervalo de disparos · s','triggerInterval',0.05,1,0.01,trigger.reset)
-    choice(p,'Método de disparo','triggerMethod',{{'click','Clique (executor)'},{'tool','Ativar Tool'}},trigger.reset)
+    label(p,'TRIGGERBOT','Corpo sob cursor: um clique ao passar por qualquer parte do personagem. Não move a mira nem altera hitboxes.')
+    switch(p,'Habilitar triggerbot','triggerEnabled',trigger.configure)
+    choice(p,'Ativação','triggerMode',{{'auto','Automático'},{'hold','Segurar tecla'},{'toggle','Ligar / desligar'}},trigger.configure)
+    choice(p,'Detecção','triggerDetect',{{'body','Corpo sob cursor'},{'square','Área quadrada'}},trigger.configure)
+    switch(p,'Repetir enquanto no alvo','triggerRepeat',trigger.configure)
+    field(p,'Lado do quadrado · pixels','triggerSize',4,300,1,trigger.configure)
+    switch(p,'Mostrar indicador e status','triggerShow')
+    switch(p,'Verificar paredes','triggerWalls',trigger.configure)
+    switch(p,'Ignorar meu time','triggerTeam',trigger.configure)
+    switch(p,'Knock Check','triggerKnock',trigger.configure)
+    choice(p,'Parte de referência','triggerPart',{{'UpperTorso','Tronco'},{'Head','Cabeça'},{'HumanoidRootPart','Centro'}},trigger.configure)
+    field(p,'Atraso inicial · segundos','triggerDelay',0,0.5,0.01,trigger.configure)
+    field(p,'Intervalo de disparos · s','triggerInterval',0.05,1,0.01,trigger.configure)
+    choice(p,'Método de disparo','triggerMethod',{{'click','Clique (executor)'},{'tool','Ativar Tool'}},trigger.configure)
     local status=text(p.frame,'Desligado',UDim2.fromOffset(0,slot(p,60)),UDim2.new(1,-4,0,54),12);status.Name='TriggerStatus'
     trigger.report(function(value) status.Text=value end)
-    label(p,'USO','Equipe a arma, esconda o painel e use a tecla abaixo. Esc ou perda de foco desarma. A seleção de Jogadores também se aplica.')
+    label(p,'USO','Ative, equipe a arma e esconda o painel. Automático não exige segurar tecla. T pausa/retoma; Esc e perda de foco desarmam.')
     label(p,'COMPATIBILIDADE','Clique depende do executor. Ativar Tool depende da arma. Desligar paredes permite disparar, mas não atravessa obstáculos.')
 end
 
@@ -1211,7 +1256,7 @@ notifyTarget=function(message)
 end
 connect(UIS.InputBegan,function(event,processed)
     if not capturing and event.KeyCode==Enum.KeyCode.Escape then
-        trigger.reset();resetCamera()
+        trigger.reset(true);resetCamera()
         return
     end
     if not capturing and latched and event.KeyCode==camBind then resetCamera();return end

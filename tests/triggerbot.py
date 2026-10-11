@@ -27,6 +27,8 @@ lua.execute(r'''
 advance(.6)
 local s=EVINI.Settings
 assert(not s.triggerEnabled,'off by default')
+assert(s.triggerMode=='auto' and s.triggerDetect=='body','body/auto defaults')
+s.triggerMode='hold';s.triggerDetect='square';s.triggerRepeat=true;s.triggerDelay=.08
 assert(find('Tab_Triggerbot'),'own tab')
 find('triggerEnabled').Activated:Fire();press('T');tick(.2);assert(shots==0,'cannot arm while UI open')
 press('L');tick(.2);assert(shots==0,'closing UI never auto-arms')
@@ -64,7 +66,7 @@ press('L');press('R');me.Character.hum.Health=0;tick(.2);assert(shots==6,'own de
 me.Character.children.Gun=nil;gun.Parent=nil;press('R');tick(.2);tick(.2);assert(shots==6,'no Tool no click');press('R')
 gun.Parent=me.Character;me.Character.children.Gun=gun
 -- Missing click capability is diagnosed; native Tool pulse is bounded.
-mouse1click=nil;press('R');tick(.2);assert(find('TriggerStatus').Text:find('indisponível',1,true),'unsupported click status');press('R')
+mouse1click=nil;press('R');tick(.2);assert(find('TriggerStatus').Text:find('Executor sem clique',1,true),'unsupported click status');press('R')
 s.triggerMethod='tool';press('R');tick(.1);frame(.1);assert(nativeShots==1 and nativeActive,'native activation')
 advance(.03);assert(not nativeActive,'native pulse releases')
 frame(.2);assert(nativeActive,'next native pulse');press('Escape');assert(not nativeActive,'escape releases owned activation immediately')
