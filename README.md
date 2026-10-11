@@ -1,10 +1,16 @@
-# EVINI 4.5
+# EVINI 4.6
 
 Hub independente inspirado nas capturas das configurações do Da Hood: painel único translúcido, somente cantos superiores arredondados, base reta, título EV centralizado, abas horizontais, interruptores verdes e botão de fechar vermelho. Não carrega Nitrogen ou Azure.
 
 ```lua
 loadstring(game:HttpGet("https://raw.githubusercontent.com/EDUVlNI/evini-loader/main/main.lua"))()
 ```
+
+## Pausa com faca equipada — 4.6
+
+O trigger pausa quando encontra uma Tool equipada com a palavra `Knife`, `Knives` ou `Faca` no nome, sem distinguir maiúsculas/minúsculas (inclui `[Knife]`). O status mostra **Pausado · faca equipada**. Ele também solta qualquer pressão/ativação automática pendente. Guardar a faca ou trocar para uma arma permite retomar no modo escolhido, sem mudar o botão Habilitar nem rearmar um trigger que você já havia pausado.
+
+Facas no Backpack não bloqueiam. Continua exigindo uma Tool habilitada para disparar; mãos vazias não geram cliques. Se o jogo usar um nome diferente para a faca, será necessário acrescentá-lo à identificação. As duas hitboxes permanecem intactas.
 
 ## Trigger por corpo sob o cursor — 4.5
 

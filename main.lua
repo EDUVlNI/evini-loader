@@ -1,4 +1,4 @@
--- EVINI 4.5: fonte independente. Nao carrega o Nitrogen.
+-- EVINI 4.6: fonte independente. Nao carrega o Nitrogen.
 -- Alteracoes de hitbox sao locais; o servidor pode ignora-las.
 local Players = game:GetService('Players')
 local UIS = game:GetService('UserInputService')
@@ -536,6 +536,17 @@ do
     local function eligible(p)
         return p and p~=player and not departing[p] and selectedPlayer(p) and viable(p.Character) and not (state.triggerTeam and not player.Neutral and not p.Neutral and player.Team and player.Team==p.Team)
     end
+    local function knifeEquipped()
+        -- Only direct equipped Tools; a knife in Backpack must not pause firing.
+        for _,tool in ipairs(player.Character:GetChildren()) do
+            if tool:IsA('Tool') then
+                for word in tool.Name:lower():gmatch('%a+') do
+                    if word=='knife' or word=='knives' or word=='faca' then return true end
+                end
+            end
+        end
+        return false
+    end
     local function bodyTarget(camera,mouse)
         local ray=camera:ViewportPointToRay(mouse.X,mouse.Y)
         local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Exclude
@@ -596,6 +607,10 @@ do
         square.Size=UDim2.fromOffset(side,side);square.Visible=state.triggerShow and not state.hideVisuals
         outline.Color=active and Color3.fromRGB(90,205,125) or Color3.fromRGB(220,220,220)
         if not active then pendingTarget=nil;status(fault or ((state.triggerMode=='hold' and 'Segure ' or 'Aperte ')..state.triggerKeyName..' para ativar'));return end
+        if knifeEquipped() then
+            releaseInput();pendingTarget=nil;entryFired=false;stableSince=clock
+            status('Pausado · faca equipada');return
+        end
         local camera=Workspace.CurrentCamera;if not camera then pendingTarget=nil;return end
         local target
         if state.triggerDetect=='body' then target=bodyTarget(camera,mouse) else target=squareTarget(camera,mouse) end

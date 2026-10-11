@@ -41,6 +41,7 @@ Instance={new=function(class)
  local n={ClassName=class,Name=class,children={},Visible=true,Activated=signal(),InputBegan=signal(),FocusLost=signal(),AbsoluteSize=Vector2.new(446,32),AbsolutePosition=Vector2.new(0,0)}
  function n:GetPropertyChangedSignal(key) self.signals=self.signals or {};self.signals[key]=self.signals[key] or signal();return self.signals[key] end
  function n:IsA(kind) return self.ClassName==kind or (kind=='BasePart' and self.ClassName=='Part') end
+ function n:GetChildren() local out={};for _,child in pairs(self.children) do if child.Parent==self then out[#out+1]=child end end;return out end
  function n:FindFirstChild(name) return self.children[name] end
  function n:FindFirstChildOfClass(kind) for _,c in pairs(self.children) do if c:IsA(kind) then return c end end end
  function n:IsDescendantOf(p) local parent=self.Parent; while parent do if parent==p then return true end; parent=parent.Parent end; return false end

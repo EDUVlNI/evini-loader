@@ -63,6 +63,26 @@ press('Escape');assert(releases==1,'Escape releases injected press immediately')
 press('T');bodyHit=nil;tick(.2);bodyHit=arm;tick(.2);assert(presses==2 and releases==2,'automatic press releases after bounded pulse')
 mouse1press=nil;mouse1release=nil;bodyHit=nil;tick(.2);bodyHit=arm;tick(.2)
 assert(find('TriggerHUD').Text:find('Executor sem clique',1,true),'missing capability visible outside hub')
+-- Knife in hand pauses without disarming; Backpack knives never block.
+mouse1click=function() shots=shots+1 end
+local before=shots
+knife=attach(me.Character,'[Knife]',Instance.new('Tool'));knife.Enabled=true
+for i=1,4 do tick(.2) end
+assert(shots==before and find('TriggerHUD').Text:find('faca equipada',1,true),'knife overrides even another equipped Tool')
+backpack=Instance.new('Backpack');knife.Parent=backpack;me.Character.children['[Knife]']=nil
+tick(.2);assert(shots==before+1,'putting knife away resumes without a new key')
+knife.Parent=me.Character;me.Character.children.Knife=knife;knife.Name='FACA';s.triggerMethod='tool'
+local native=0;function gun:Activate() native=native+1 end;function gun:Deactivate() end
+bodyHit=nil;tick(.2);bodyHit=arm;tick(.2);assert(native==0,'knife blocks native method too')
+knife.Parent=backpack;me.Character.children.Knife=nil;tick(.2);assert(native==1,'native method resumes after knife removed')
+-- A pending synthetic press is released when the knife appears.
+s.triggerMethod='click';mouse1click=nil
+mouse1press=function() presses=presses+1 end;mouse1release=function() releases=releases+1 end
+bodyHit=nil;tick(.2);bodyHit=arm;frame(.2);local releaseBefore=releases
+knife.Parent=me.Character;me.Character.children.Knife=knife;knife.Name='Knife';frame(.01)
+assert(releases==releaseBefore+1,'knife equip releases injected press')
+advance(.1);assert(releases==releaseBefore+1,'delayed release does not run twice')
+knife.Parent=backpack;me.Character.children.Knife=nil
 EVINI.Save();EVINI.Destroy()
 -- Old v4.4 preferences migrate to the requested defaults without changing hitboxes.
 files['evini-settings-1234.json']=py_encode({version=1,settings={triggerMode='hold',triggerDelay=.08,triggerEnabled=true,painSize=13,painEnabled=false}})
