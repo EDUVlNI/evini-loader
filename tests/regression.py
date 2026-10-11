@@ -194,7 +194,7 @@ for _,n in ipairs(nodes) do
 end
 assert(names==3,'player and NPC names')
 local tabs=0;for _,n in ipairs(nodes) do if n.Name:sub(1,4)=='Tab_' then tabs=tabs+1 end end
-assert(tabs==6,'six tabs with separate Painhood hitbox')
+assert(tabs==7,'seven tabs including independent triggerbot')
 press('L');advance(0.1)
 -- Basic earlier regression checks.
 find('enabled').Activated:Fire();assert(enemy.Character.root.Size.X==8,'expansion')

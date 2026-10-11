@@ -1,4 +1,4 @@
--- EVINI 4.3: fonte independente. Nao carrega o Nitrogen.
+-- EVINI 4.4: fonte independente. Nao carrega o Nitrogen.
 -- Alteracoes de hitbox sao locais; o servidor pode ignora-las.
 local Players = game:GetService('Players')
 local UIS = game:GetService('UserInputService')
@@ -22,6 +22,9 @@ state.extraDarkTheme=true;state.adjustableSmoke=true;state.uiDarkness=1;state.de
 state.camMarker=false;state.camTracer=false;state.hideVisuals=false
 state.aimViewer=false;state.aimEstimate=false;state.aimLength=120
 state.hideKeyName='L'; state.camKeyName='Q'
+state.triggerEnabled=false;state.triggerKeyName='T';state.triggerMode='hold';state.triggerSize=32
+state.triggerWalls=true;state.triggerShow=true;state.triggerTeam=false;state.triggerKnock=true
+state.triggerDelay=0.08;state.triggerInterval=0.15;state.triggerPart='UpperTorso';state.triggerMethod='click'
 local closing=false
 local alive=true
 -- Preferencias locais por experiencia. JSON validado, nunca executado.
@@ -29,8 +32,8 @@ local HttpService=game:GetService('HttpService')
 local settingsFile='evini-settings-'..tostring((game.GameId and game.GameId>0) and game.GameId or game.PlaceId or 0)..'.json'
 local defaults={}
 for k,v in pairs(state) do defaults[k]=v end
-local bounds={painSize={2,30},fovTransparency={0,1},cycleInterval={0.3,3},aimLength={10,500},uiDarkness={0,1},uiOpacity={0,0.8},soundVolume={0,0.6},uiSize={0.45,1.5},size={2,30},fov={30,500},prediction={0,0.5},airPrediction={0,0.5},autoPredMath={100,1000},autoBase={0,0.2},smoothing={0,1}}
-local options={accent={Branco=true,Cinza=true},hitPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true},airPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true}}
+local bounds={triggerSize={4,300},triggerDelay={0,0.5},triggerInterval={0.05,1},painSize={2,30},fovTransparency={0,1},cycleInterval={0.3,3},aimLength={10,500},uiDarkness={0,1},uiOpacity={0,0.8},soundVolume={0,0.6},uiSize={0.45,1.5},size={2,30},fov={30,500},prediction={0,0.5},airPrediction={0,0.5},autoPredMath={100,1000},autoBase={0,0.2},smoothing={0,1}}
+local options={triggerMode={hold=true,toggle=true},triggerPart={Head=true,UpperTorso=true,HumanoidRootPart=true},triggerMethod={click=true,tool=true},accent={Branco=true,Cinza=true},hitPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true},airPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true}}
 local persistenceStatus='Salvamento indisponível neste executor'
 local persistenceReport=function() end
 local canSave=type(writefile)=='function' and type(readfile)=='function'
@@ -54,13 +57,16 @@ local function loadSettings()
                         state.playerSelection[id]=enabled;count=count+1
                     end
                 end
-            elseif key=='hideKeyName' or key=='camKeyName' then
+            elseif key=='hideKeyName' or key=='camKeyName' or key=='triggerKeyName' then
                 local valid,code=pcall(function() return Enum.KeyCode[value] end)
                 if valid and code and code~=Enum.KeyCode.Unknown and code~=Enum.KeyCode.Escape then state[key]=value end
             end
         end
     end
     if state.hideKeyName==state.camKeyName then state.hideKeyName='L';state.camKeyName='Q' end
+    if state.triggerKeyName==state.hideKeyName or state.triggerKeyName==state.camKeyName then
+        for _,key in ipairs({'T','Y','U','P'}) do if key~=state.hideKeyName and key~=state.camKeyName then state.triggerKeyName=key;break end end
+    end
     persistenceStatus='Configurações restauradas'
 end
 loadSettings()
@@ -485,6 +491,101 @@ local camBind=Enum.KeyCode[state.camKeyName]
 local capturing=nil
 local uiOpen=false
 local uiBusy=false
+
+local trigger={}
+do
+    local armed=false
+    local focused=true
+    local clock,lastShot,stableSince=0,-math.huge,0
+    local pendingTarget=nil
+    local fault=nil
+    local heldTool=nil
+    local heldVersion=0
+    local function releaseTool()
+        heldVersion=heldVersion+1
+        local tool=heldTool;heldTool=nil
+        if tool then pcall(function() tool:Deactivate() end) end
+    end
+    local report=function() end
+    local square=create('Frame',{Name='TriggerSquare',AnchorPoint=Vector2.new(0.5,0.5),BackgroundTransparency=1,BorderSizePixel=0,Visible=false},overlays)
+    local outline=create('UIStroke',{Color=Color3.fromRGB(220,220,220),Thickness=1,Transparency=0.15},square)
+    local function status(value) report(value) end
+    function trigger.reset() releaseTool();armed=false;pendingTarget=nil;stableSince=clock;square.Visible=false end
+    function trigger.report(fn) report=fn end
+    function trigger.press()
+        if not state.triggerEnabled or uiOpen or uiBusy or capturing or not focused or UIS:GetFocusedTextBox() then return end
+        fault=nil
+        if state.triggerMode=='toggle' then armed=not armed else armed=true end
+        pendingTarget=nil;stableSince=clock
+    end
+    function trigger.release() if state.triggerMode=='hold' then trigger.reset() end end
+    local function viable(character)
+        local hum=character and character:FindFirstChildOfClass('Humanoid')
+        local effects=character and character:FindFirstChild('BodyEffects')
+        return character and character.Parent and hum and hum.Health>0 and hum:GetState()~=Enum.HumanoidStateType.Dead and not flagOn(effects,'Dead') and not (state.triggerKnock and flagOn(effects,'K.O'))
+    end
+    local function selectTarget(camera,mouse)
+        local best,distance=nil,math.huge
+        for _,p in ipairs(Players:GetPlayers()) do
+            if p~=player and not departing[p] and selectedPlayer(p) and viable(p.Character) then
+                local sameTeam=state.triggerTeam and not player.Neutral and not p.Neutral and player.Team and player.Team==p.Team
+                local part=not sameTeam and targetPart(p.Character,state.triggerPart)
+                if part then
+                    local point,onScreen=camera:WorldToViewportPoint(part.Position)
+                    local dx,dy=point.X-mouse.X,point.Y-mouse.Y
+                    if onScreen and point.Z>0 and math.abs(dx)<=state.triggerSize/2 and math.abs(dy)<=state.triggerSize/2 and dx*dx+dy*dy<distance then
+                        local clear=true
+                        if state.triggerWalls then
+                            local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Exclude
+                            params.FilterDescendantsInstances={player.Character}
+                            local hit=Workspace:Raycast(camera.CFrame.Position,part.Position-camera.CFrame.Position,params)
+                            clear=not hit or hit.Instance:IsDescendantOf(p.Character)
+                        end
+                        if clear then best=p;distance=dx*dx+dy*dy end
+                    end
+                end
+            end
+        end
+        return best
+    end
+    local function step(dt)
+        clock=clock+dt
+        if not alive or closing or not state.triggerEnabled then trigger.reset();status('Desligado');return end
+        if not focused or uiOpen or uiBusy or capturing or UIS:GetFocusedTextBox() then trigger.reset();status('Pausado · interface, digitação ou foco');return end
+        if not viable(player.Character) then trigger.reset();status('Pausado · personagem indisponível');return end
+        local mouse=UIS:GetMouseLocation()
+        square.Position=UDim2.fromOffset(mouse.X,mouse.Y);square.Size=UDim2.fromOffset(state.triggerSize,state.triggerSize)
+        square.Visible=state.triggerShow and not state.hideVisuals
+        outline.Color=armed and Color3.fromRGB(90,205,125) or Color3.fromRGB(220,220,220)
+        if not armed then pendingTarget=nil;status(fault or ((state.triggerMode=='hold' and 'Segure ' or 'Aperte ')..state.triggerKeyName..' para ativar'));return end
+        local tool=player.Character:FindFirstChildOfClass('Tool')
+        if not tool or tool.Enabled==false then pendingTarget=nil;status('Equipe uma arma (Tool) habilitada');return end
+        if state.triggerMethod=='click' and type(mouse1click)~='function' then pendingTarget=nil;status('Clique indisponível no executor · tente Ativar Tool');return end
+        if UIS:IsMouseButtonPressed(Enum.UserInputType.MouseButton1) then pendingTarget=nil;status('Pausado · disparo manual');return end
+        local camera=Workspace.CurrentCamera;if not camera then pendingTarget=nil;return end
+        local target=selectTarget(camera,mouse)
+        if not target then pendingTarget=nil;status('Ativo · aguardando alvo no quadrado');return end
+        if pendingTarget~=target then pendingTarget=target;stableSince=clock end
+        status('Alvo: @'..target.Name)
+        if clock-stableSince<state.triggerDelay or clock-lastShot<state.triggerInterval then return end
+        lastShot=clock
+        local ok,err=pcall(function()
+            if state.triggerMethod=='click' then mouse1click() else
+                releaseTool();heldTool=tool;local version=heldVersion
+                tool:Activate()
+                task.delay(0.02,function() if heldVersion==version and heldTool==tool then releaseTool() end end)
+            end
+        end)
+        if not ok then trigger.reset();fault='Falha no disparo: '..tostring(err):sub(1,100);status(fault) end
+    end
+    connect(UIS.WindowFocusReleased,function() focused=false;trigger.reset() end)
+    if UIS.WindowFocused then connect(UIS.WindowFocused,function() focused=true end) end
+    RunService:BindToRenderStep('EVINI_Trigger',Enum.RenderPriority.Camera.Value+2,function(dt)
+        local ok,err=pcall(step,dt)
+        if not ok then trigger.reset();fault='Trigger pausado: '..tostring(err):sub(1,100);status(fault) end
+    end)
+end
+
 local function cameraActive()
     if closing or not state.camEnabled or uiOpen or uiBusy or capturing or UIS:GetFocusedTextBox() then return false end
     return latched and cameraTarget~=nil
@@ -655,8 +756,8 @@ local sidebar=region('Navigation',10,94,600,46)
 local body=region('Content',10,142,600,462)
 local footer=region('Footer',10,610,600,34)
 header.Size=UDim2.new(1,0,0,76)
-sidebar.Position=UDim2.fromOffset(10,68);sidebar.Size=UDim2.new(1,-20,0,86)
-body.Position=UDim2.fromOffset(10,156);body.Size=UDim2.new(1,-20,1,-198)
+sidebar.Position=UDim2.fromOffset(10,68);sidebar.Size=UDim2.new(1,-20,0,126)
+body.Position=UDim2.fromOffset(10,196);body.Size=UDim2.new(1,-20,1,-238)
 footer.Position=UDim2.new(0,10,1,-38);footer.Size=UDim2.new(1,-20,0,34)
 local title=text(header,'EVINI',UDim2.fromOffset(100,-42),UDim2.new(1,-200,0,84),60)
 title.Name='HubTitle';title.Font=Enum.Font.GothamBlack;title.TextXAlignment=Enum.TextXAlignment.Center;title.TextStrokeTransparency=0;title.TextStrokeColor3=Color3.new(0,0,0)
@@ -698,7 +799,7 @@ local function showUI(open,after)
     if not alive then return end
     animationVersion=animationVersion+1
     for _,t in ipairs(activeTweens) do t:Cancel() end
-    activeTweens={};uiBusy=false;uiOpen=open;resetCamera();fitUI()
+    activeTweens={};uiBusy=false;uiOpen=open;trigger.reset();resetCamera();fitUI()
     panel.GroupTransparency=0;panel.Position=UDim2.new(0.5,0,0.5,-22);motionScale.Scale=1
     rootUI.Visible=open
     if after then after() end
@@ -721,6 +822,7 @@ local function page(name,index)
     local content=create('Frame',{Name=name..'Content',Position=UDim2.fromOffset(3,2),Size=UDim2.new(1,-9,0,0),BackgroundTransparency=1,BorderSizePixel=0},frame)
     pages[name]={frame=content,scroll=frame,y=0};accent(frame,'ScrollBarImageColor3')
     local b=button(sidebar,name,UDim2.new(((index-1)%3)/3,3,0,5+math.floor((index-1)/3)*40),UDim2.new(1/3,-6,0,34)); b.Name='Tab_'..name; b.Font=Enum.Font.GothamMedium;b.TextSize=14
+    if index==7 then b.Size=UDim2.new(1,-6,0,34) end
     tabs[name]=b
     create('Frame',{Name='SelectedTabHighlight',Position=UDim2.fromOffset(2,2),Size=UDim2.new(1,-4,0,2),BackgroundColor3=Color3.fromRGB(170,170,164),BorderSizePixel=0,Visible=false},b)
     connect(b.Activated,function()
@@ -741,6 +843,7 @@ page('Hitbox (Painhood)',3)
 local espPage=page('Visual',4)
 local playersPage=page('Jogadores',5)
 local settingsPage=page('Ajustes',6)
+page('Triggerbot',7)
 local function subPage() return {frame=create('Frame',{BackgroundTransparency=1,Visible=false,Size=UDim2.new(1,0,0,0)},camPage.frame),y=0} end
 local predPage=subPage()
 local function slot(p,h)
@@ -861,6 +964,27 @@ label(painPage,'COMO USAR','Comece por Tronco. A lista mostra peças reais dos j
 label(painPage,'RESTAURAÇÃO','Desativar restaura tamanho, transparência e colisão. A seleção da aba Jogadores também vale aqui.')
 
 end
+
+do
+    local p=pages.Triggerbot
+    label(p,'TRIGGERBOT','Dispara quando a parte escolhida entra no quadrado do cursor. Não move a mira nem altera as hitboxes.')
+    switch(p,'Habilitar triggerbot','triggerEnabled',trigger.reset)
+    choice(p,'Ativação','triggerMode',{{'hold','Segurar tecla'},{'toggle','Ligar / desligar'}},trigger.reset)
+    field(p,'Lado do quadrado · pixels','triggerSize',4,300,1,trigger.reset)
+    switch(p,'Mostrar quadrado','triggerShow')
+    switch(p,'Verificar paredes','triggerWalls',trigger.reset)
+    switch(p,'Ignorar meu time','triggerTeam',trigger.reset)
+    switch(p,'Knock Check','triggerKnock',trigger.reset)
+    choice(p,'Parte de referência','triggerPart',{{'UpperTorso','Tronco'},{'Head','Cabeça'},{'HumanoidRootPart','Centro'}},trigger.reset)
+    field(p,'Atraso inicial · segundos','triggerDelay',0,0.5,0.01,trigger.reset)
+    field(p,'Intervalo de disparos · s','triggerInterval',0.05,1,0.01,trigger.reset)
+    choice(p,'Método de disparo','triggerMethod',{{'click','Clique (executor)'},{'tool','Ativar Tool'}},trigger.reset)
+    local status=text(p.frame,'Desligado',UDim2.fromOffset(0,slot(p,60)),UDim2.new(1,-4,0,54),12);status.Name='TriggerStatus'
+    trigger.report(function(value) status.Text=value end)
+    label(p,'USO','Equipe a arma, esconda o painel e use a tecla abaixo. Esc ou perda de foco desarma. A seleção de Jogadores também se aplica.')
+    label(p,'COMPATIBILIDADE','Clique depende do executor. Ativar Tool depende da arma. Desligar paredes permite disparar, mas não atravessa obstáculos.')
+end
+
 label(playersPage,'JOGADORES','✓ permite hitbox e cam lock. Desmarque para proteger a pessoa. A seleção fica salva pelo usuário.')
 switch(playersPage,'Selecionar novos jogadores','newPlayersSelected')
 local actionsY=slot(playersPage,44)
@@ -1003,19 +1127,20 @@ local keyButtons={}
 local function refreshKeys()
     if keyButtons.hide then keyButtons.hide.Text=hideKey.Name end
     if keyButtons.cam then keyButtons.cam.Text=camBind.Name end
+    if keyButtons.trigger then keyButtons.trigger.Text=state.triggerKeyName end
 end
 local function stopCapture() capturing=nil; captureVersion=captureVersion+1; refreshKeys() end
 local function keyField(value,which)
-    local p=which~='hide' and camPage or settingsPage
+    local p=which=='trigger' and pages.Triggerbot or which~='hide' and camPage or settingsPage
     local y=which=='cam' and camKeyY or slot(p,46); rowText(p,value,y)
-    local b=button(p.frame,'',UDim2.new(1,-116,0,y+3),UDim2.fromOffset(106,32)); b.Name=which=='hide' and 'Keybind' or 'CamKeybind'; keyButtons[which]=b
+    local b=button(p.frame,'',UDim2.new(1,-116,0,y+3),UDim2.fromOffset(106,32)); b.Name=which=='trigger' and 'TriggerKeybind' or which=='hide' and 'Keybind' or 'CamKeybind'; keyButtons[which]=b
     connect(b.Activated,function()
         if capturing==which then stopCapture(); return end
-        stopCapture(); capturing=which; resetCamera(); b.Text='Tecla?'; local version=captureVersion
+        stopCapture(); capturing=which; trigger.reset(); resetCamera(); b.Text='Tecla?'; local version=captureVersion
         task.delay(8,function() if alive and version==captureVersion then stopCapture() end end)
     end)
 end
-keyField('Ocultar / abrir hub','hide'); keyField('Tecla do cam lock','cam'); refreshKeys()
+keyField('Ocultar / abrir hub','hide'); keyField('Tecla do cam lock','cam');keyField('Tecla do triggerbot','trigger'); refreshKeys()
 local saveText=text(settingsPage.frame,persistenceStatus,UDim2.fromOffset(0,slot(settingsPage,38)),UDim2.new(1,0,0,32),11); saveText.Font=Enum.Font.Gotham;saveText.TextColor3=palette.muted
 persistenceReport=function(message) if alive then saveText.Text=message end end
 label(settingsPage,'COMPATIBILIDADE','Base R6 / R15 com Humanoid. Câmeras e personagens personalizados podem exigir adaptação. Fechar remove efeitos e restaura hitboxes.')
@@ -1086,7 +1211,7 @@ notifyTarget=function(message)
 end
 connect(UIS.InputBegan,function(event,processed)
     if not capturing and event.KeyCode==Enum.KeyCode.Escape then
-        resetCamera()
+        trigger.reset();resetCamera()
         return
     end
     if not capturing and latched and event.KeyCode==camBind then resetCamera();return end
@@ -1095,14 +1220,15 @@ connect(UIS.InputBegan,function(event,processed)
         if event.UserInputType~=Enum.UserInputType.Keyboard then return end
         if event.KeyCode==Enum.KeyCode.Escape then stopCapture(); return end
         if processed or event.KeyCode==Enum.KeyCode.Unknown then return end
-        local assigned={hide=hideKey,cam=camBind}
+        local assigned={hide=hideKey,cam=camBind,trigger=Enum.KeyCode[state.triggerKeyName]}
         for role,key in pairs(assigned) do if role~=capturing and event.KeyCode==key then keyButtons[capturing].Text='Em uso';return end end
         if event.KeyCode==Enum.KeyCode.Escape then stopCapture(); return end
-        if capturing=='hide' then hideKey=event.KeyCode;state.hideKeyName=hideKey.Name else camBind=event.KeyCode;state.camKeyName=camBind.Name end
+        if capturing=='hide' then hideKey=event.KeyCode;state.hideKeyName=hideKey.Name elseif capturing=='trigger' then state.triggerKeyName=event.KeyCode.Name;trigger.reset() else camBind=event.KeyCode;state.camKeyName=camBind.Name end
         queueSave();stopCapture(); return
     end
     if processed then return end
-    if event.KeyCode==hideKey then showUI(not uiOpen)
+    if event.KeyCode==Enum.KeyCode[state.triggerKeyName] then trigger.press()
+    elseif event.KeyCode==hideKey then showUI(not uiOpen)
     elseif event.KeyCode==camBind and not uiOpen and not uiBusy then
         resetCamera()
         local camera=Workspace.CurrentCamera
@@ -1114,6 +1240,7 @@ connect(UIS.InputBegan,function(event,processed)
     end
 end)
 connect(UIS.InputEnded,function(event)
+    if event.KeyCode==Enum.KeyCode[state.triggerKeyName] then trigger.release() end
     if sliderDrag and (event==sliderDrag.input or event.UserInputType==Enum.UserInputType.MouseButton1) then sliderDrag=nil end
 end)
 connect(UIS.WindowFocusReleased,function() resetCamera();sliderDrag=nil end)
@@ -1137,6 +1264,7 @@ function api.Destroy()
     saveSettings();alive=false; animationVersion=animationVersion+1; resetCamera()
     for _,c in ipairs(connections) do c:Disconnect() end
     for _,t in ipairs(activeTweens) do t:Cancel() end
+    trigger.reset();RunService:UnbindFromRenderStep('EVINI_Trigger')
     RunService:UnbindFromRenderStep('EVINI_Camera')
     for _,item in pairs(roster) do item.connection:Disconnect() end
     aimFolder:Destroy()

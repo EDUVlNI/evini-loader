@@ -1,10 +1,23 @@
-# EVINI 4.3
+# EVINI 4.4
 
 Hub independente inspirado nas capturas das configurações do Da Hood: painel único translúcido, somente cantos superiores arredondados, base reta, título EV centralizado, abas horizontais, interruptores verdes e botão de fechar vermelho. Não carrega Nitrogen ou Azure.
 
 ```lua
 loadstring(game:HttpGet("https://raw.githubusercontent.com/EDUVlNI/evini-loader/main/main.lua"))()
 ```
+
+## Triggerbot — 4.4
+
+Aba separada, sem modificar as duas hitboxes. **Habilite o triggerbot, equipe sua arma, esconda o painel com L e segure T**. A tecla é editável na própria aba. Em modo ligar/desligar, uma pressão arma e outra desarma. Esc, abertura do painel, digitação, morte/K.O. local ou perda de foco desarmam; fechar o painel ou recuperar foco não rearma automaticamente.
+
+- **Lado do quadrado:** 4–300 pixels ao redor do cursor; padrão 32. A seleção verifica se o centro da parte escolhida está nessa área. Isso não aumenta o personagem nem move a mira até ele. Quadrados maiores podem disparar mesmo com o cursor fora da silhueta, sem garantir acerto.
+- Parte de referência: tronco, cabeça ou centro. Apenas jogadores vivos e permitidos na aba Jogadores; sem NPCs. Controles próprios de equipe e Knock Check.
+- **Verificar paredes** ativado por padrão: exige linha livre da câmera à parte escolhida. Desligar remove esse filtro, mas não permite que projéteis atravessem paredes.
+- Atraso inicial de 0–0,5 s e intervalo de 0,05–1 s entre disparos. Nenhuma rajada acumulada após travamento de quadro. Clique manual pausa a automação.
+- **Clique (executor)** usa `mouse1click`, se disponível. **Ativar Tool** é uma alternativa nativa de ativação curta de ferramenta equipada, seguida de desativação. A compatibilidade depende da arma; não chama remotes de dano e não é silent aim.
+- Mostrar/ocultar o quadrado é independente da ativação. Ele fica verde quando armado. Preferências são salvas, mas o estado armado nunca é restaurado ao executar novamente.
+
+O status informa falta de arma, indisponibilidade de clique ou erros. Compilação Luau e `tests/triggerbot.py` cobrem ativação, tempo entre disparos, filtros, tecla, pausa e limpeza. O disparo real no Painhood/Opiumware ainda precisa de validação em jogo; os testes são simulados.
 
 ## Correção Painhood — 4.3
 
@@ -14,7 +27,7 @@ Massa e prioridade originais também são restauradas ao desligar, trocar de alv
 
 ## Hitbox (Painhood) — 4.2
 
-Nova aba independente da **Hitbox** original. A função original de expansão do HumanoidRootPart permanece intacta. As seis abas usam duas linhas para manter os nomes legíveis em janelas menores.
+Nova aba independente da **Hitbox** original. A função original de expansão do HumanoidRootPart permanece intacta. As abas têm nomes completos e o conteúdo permanece em áreas de rolagem independentes.
 
 - Ative **Ativar Painhood** no jogo informado pelo usuário: place `138308349761110`, universo `10770257767`.
 - O padrão **Tronco (R6/R15)** redimensiona UpperTorso ou Torso existentes. **Peça** alterna entre cabeça e peças reais encontradas nos personagens; **Atualizar lista de peças** refaz essa leitura. Uma peça listada não é necessariamente usada pelo servidor para registrar acertos.
