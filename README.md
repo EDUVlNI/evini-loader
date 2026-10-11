@@ -1,10 +1,14 @@
-# EVINI 4.6
+# EVINI 4.7
 
 Hub independente inspirado nas capturas das configurações do Da Hood: painel único translúcido, somente cantos superiores arredondados, base reta, título EV centralizado, abas horizontais, interruptores verdes e botão de fechar vermelho. Não carrega Nitrogen ou Azure.
 
 ```lua
 loadstring(game:HttpGet("https://raw.githubusercontent.com/EDUVlNI/evini-loader/main/main.lua"))()
 ```
+
+## Corpo inteiro — 4.7
+
+O trigger considera cabeça, tronco, braços, mãos, pernas e pés. Removida a seleção de parte única. O modo quadrado verifica os centros de todas as peças do corpo; o modo sob cursor detecta o contato direto com qualquer peça; acessórios e ferramentas não são alvos. A pausa com faca e as duas hitboxes foram preservadas.
 
 ## Pausa com faca equipada — 4.6
 

@@ -1,4 +1,4 @@
--- EVINI 4.6: fonte independente. Nao carrega o Nitrogen.
+-- EVINI 4.7: fonte independente. Nao carrega o Nitrogen.
 -- Alteracoes de hitbox sao locais; o servidor pode ignora-las.
 local Players = game:GetService('Players')
 local UIS = game:GetService('UserInputService')
@@ -25,7 +25,7 @@ state.hideKeyName='L'; state.camKeyName='Q'
 state.triggerEnabled=false;state.triggerKeyName='T';state.triggerMode='auto';state.triggerSize=32
 state.triggerWalls=true;state.triggerShow=true;state.triggerTeam=false;state.triggerKnock=true
 state.triggerBodyVersion=true;state.triggerDetect='body';state.triggerRepeat=false
-state.triggerDelay=0;state.triggerInterval=0.15;state.triggerPart='UpperTorso';state.triggerMethod='click'
+state.triggerDelay=0;state.triggerInterval=0.15;state.triggerMethod='click'
 local closing=false
 local alive=true
 -- Preferencias locais por experiencia. JSON validado, nunca executado.
@@ -34,7 +34,7 @@ local settingsFile='evini-settings-'..tostring((game.GameId and game.GameId>0) a
 local defaults={}
 for k,v in pairs(state) do defaults[k]=v end
 local bounds={triggerSize={4,300},triggerDelay={0,0.5},triggerInterval={0.05,1},painSize={2,30},fovTransparency={0,1},cycleInterval={0.3,3},aimLength={10,500},uiDarkness={0,1},uiOpacity={0,0.8},soundVolume={0,0.6},uiSize={0.45,1.5},size={2,30},fov={30,500},prediction={0,0.5},airPrediction={0,0.5},autoPredMath={100,1000},autoBase={0,0.2},smoothing={0,1}}
-local options={triggerDetect={body=true,square=true},triggerMode={auto=true,hold=true,toggle=true},triggerPart={Head=true,UpperTorso=true,HumanoidRootPart=true},triggerMethod={click=true,tool=true},accent={Branco=true,Cinza=true},hitPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true},airPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true}}
+local options={triggerDetect={body=true,square=true},triggerMode={auto=true,hold=true,toggle=true},triggerMethod={click=true,tool=true},accent={Branco=true,Cinza=true},hitPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true},airPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true}}
 local persistenceStatus='Salvamento indisponível neste executor'
 local persistenceReport=function() end
 local canSave=type(writefile)=='function' and type(readfile)=='function'
@@ -573,18 +573,19 @@ do
         local best,distance=nil,math.huge
         for _,p in ipairs(Players:GetPlayers()) do
             if eligible(p) then
-                local part=targetPart(p.Character,state.triggerPart)
-                if part then
-                    local point,onScreen=camera:WorldToViewportPoint(part.Position)
-                    local dx,dy=point.X-mouse.X,point.Y-mouse.Y
-                    if onScreen and point.Z>0 and math.abs(dx)<=state.triggerSize/2 and math.abs(dy)<=state.triggerSize/2 and dx*dx+dy*dy<distance then
-                        local clear=true
-                        if state.triggerWalls then
-                            local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Exclude;params.FilterDescendantsInstances={player.Character}
-                            local hit=Workspace:Raycast(camera.CFrame.Position,part.Position-camera.CFrame.Position,params)
-                            clear=not hit or hit.Instance:IsDescendantOf(p.Character)
+                for _,part in ipairs(p.Character:GetChildren()) do
+                    if part:IsA('BasePart') then
+                        local point,onScreen=camera:WorldToViewportPoint(part.Position)
+                        local dx,dy=point.X-mouse.X,point.Y-mouse.Y
+                        if onScreen and point.Z>0 and math.abs(dx)<=state.triggerSize/2 and math.abs(dy)<=state.triggerSize/2 and dx*dx+dy*dy<distance then
+                            local clear=true
+                            if state.triggerWalls then
+                                local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Exclude;params.FilterDescendantsInstances={player.Character}
+                                local hit=Workspace:Raycast(camera.CFrame.Position,part.Position-camera.CFrame.Position,params)
+                                clear=not hit or hit.Instance:IsDescendantOf(p.Character)
+                            end
+                            if clear then best=p;distance=dx*dx+dy*dy end
                         end
-                        if clear then best=p;distance=dx*dx+dy*dy end
                     end
                 end
             end
@@ -1028,14 +1029,13 @@ do
     label(p,'TRIGGERBOT','Corpo sob cursor: um clique ao passar por qualquer parte do personagem. Não move a mira nem altera hitboxes.')
     switch(p,'Habilitar triggerbot','triggerEnabled',trigger.configure)
     choice(p,'Ativação','triggerMode',{{'auto','Automático'},{'hold','Segurar tecla'},{'toggle','Ligar / desligar'}},trigger.configure)
-    choice(p,'Detecção','triggerDetect',{{'body','Corpo sob cursor'},{'square','Área quadrada'}},trigger.configure)
+    choice(p,'Detecção','triggerDetect',{{'body','Corpo inteiro sob cursor'},{'square','Quadrado · corpo inteiro'}},trigger.configure)
     switch(p,'Repetir enquanto no alvo','triggerRepeat',trigger.configure)
     field(p,'Lado do quadrado · pixels','triggerSize',4,300,1,trigger.configure)
     switch(p,'Mostrar indicador e status','triggerShow')
     switch(p,'Verificar paredes','triggerWalls',trigger.configure)
     switch(p,'Ignorar meu time','triggerTeam',trigger.configure)
     switch(p,'Knock Check','triggerKnock',trigger.configure)
-    choice(p,'Parte de referência','triggerPart',{{'UpperTorso','Tronco'},{'Head','Cabeça'},{'HumanoidRootPart','Centro'}},trigger.configure)
     field(p,'Atraso inicial · segundos','triggerDelay',0,0.5,0.01,trigger.configure)
     field(p,'Intervalo de disparos · s','triggerInterval',0.05,1,0.01,trigger.configure)
     choice(p,'Método de disparo','triggerMethod',{{'click','Clique (executor)'},{'tool','Ativar Tool'}},trigger.configure)

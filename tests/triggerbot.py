@@ -39,6 +39,13 @@ assert(workspace.CurrentCamera.CFrame==camera,'does not move camera')
 tick(.02);assert(shots==1,'rate limit');tick(.2);assert(shots==2,'repeat while held')
 release('T');tick(.5);assert(shots==2,'release stops')
 assert(find('TriggerSquare').Size.X.Offset==32,'square size applied')
+-- A hand alone inside the square must be enough, with the torso outside.
+local hand=makePart(enemy.Character,'RightHand',Vector3.new(0,0,100))
+s.triggerSize=4;press('T');tick(.2);tick(.2)
+assert(shots==3,'hand triggers independently from torso')
+release('T');hand.Parent=nil;enemy.Character.children.RightHand=nil;shots=2
+assert(s.triggerPart==nil,'no single-body-part preference remains')
+
 -- Square bounds are independent from hitbox geometry.
 s.triggerSize=4;press('T');tick(.2);tick(.2);assert(shots==2,'outside small square')
 s.triggerSize=40;tick(.2);tick(.2);assert(shots==3,'larger selection area works')
