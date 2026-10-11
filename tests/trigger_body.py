@@ -83,6 +83,29 @@ knife.Parent=me.Character;me.Character.children.Knife=knife;knife.Name='Knife';f
 assert(releases==releaseBefore+1,'knife equip releases injected press')
 advance(.1);assert(releases==releaseBefore+1,'delayed release does not run twice')
 knife.Parent=backpack;me.Character.children.Knife=nil
+-- Geometry fallback: physics reports no head/foot hit (CanQuery=false).
+mouse1click=function() shots=shots+1 end
+bodyHit=nil;wall=nil;s.triggerWalls=true;s.triggerMethod='click'
+local foot=makePart(enemy.Character,'RightFoot',Vector3.new(100,-20,100));foot.CanQuery=false
+local head=enemy.Character.head;head.Position=Vector3.new(100,20,100);head.CanQuery=false
+local beforeGeometry=shots
+uis.mouse=Vector2.new(700,700);tick(.2)
+uis.mouse=Vector2.new(500,280);tick(.2)
+assert(shots==beforeGeometry+1,'head volume triggers without a physics hit')
+uis.mouse=Vector2.new(700,700);tick(.2)
+uis.mouse=Vector2.new(500,320);tick(.2)
+assert(shots==beforeGeometry+2,'foot volume triggers without a physics hit')
+uis.mouse=Vector2.new(700,700);tick(.2)
+bodyHit=hatHandle;uis.mouse=Vector2.new(500,280);tick(.2)
+assert(shots==beforeGeometry+3,'hat does not block head geometry')
+bodyHit=nil;uis.mouse=Vector2.new(700,700);tick(.2)
+wall={Instance=Instance.new('Part')};uis.mouse=Vector2.new(500,320);tick(.2)
+assert(shots==beforeGeometry+3,'wall still blocks fallback')
+s.triggerWalls=false;tick(.2)
+assert(shots==beforeGeometry+4,'wall toggle works with foot geometry')
+wall=nil;bodyHit=nil;uis.mouse=Vector2.new(700,700);tick(.2)
+uis.mouse=Vector2.new(503,320);tick(.2)
+assert(shots==beforeGeometry+4,'outside foot box does not trigger')
 EVINI.Save();EVINI.Destroy()
 -- Old v4.4 preferences migrate to the requested defaults without changing hitboxes.
 files['evini-settings-1234.json']=py_encode({version=1,settings={triggerMode='hold',triggerDelay=.08,triggerEnabled=true,painSize=13,painEnabled=false}})

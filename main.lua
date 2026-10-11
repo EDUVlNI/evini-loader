@@ -1,4 +1,4 @@
--- EVINI 4.7: fonte independente. Nao carrega o Nitrogen.
+-- EVINI 4.8: fonte independente. Nao carrega o Nitrogen.
 -- Alteracoes de hitbox sao locais; o servidor pode ignora-las.
 local Players = game:GetService('Players')
 local UIS = game:GetService('UserInputService')
@@ -547,6 +547,48 @@ do
         end
         return false
     end
+    -- Ray versus each oriented limb box, independent of CanQuery/collision mesh.
+    local function bodyBoxDistance(part,ray)
+        local origin=part.CFrame:PointToObjectSpace(ray.Origin)
+        local direction=part.CFrame:VectorToObjectSpace(ray.Direction)
+        local half=part.Size*0.5
+        local near,far=0,2000
+        for _,axis in ipairs({'X','Y','Z'}) do
+            local o,d,h=origin[axis],direction[axis],half[axis]
+            if math.abs(d)<0.000001 then
+                if o < -h or o > h then return end
+            else
+                local a,b=(-h-o)/d,(h-o)/d
+                if a>b then a,b=b,a end
+                near=math.max(near,a);far=math.min(far,b)
+                if near>far then return end
+            end
+        end
+        return near
+    end
+    local function wholeBodyTarget(ray)
+        local best,distance=nil,2000
+        for _,p in ipairs(Players:GetPlayers()) do
+            if eligible(p) then
+                for _,part in ipairs(p.Character:GetChildren()) do
+                    if part:IsA('BasePart') and part.Name~='HumanoidRootPart' then
+                        local depth=bodyBoxDistance(part,ray)
+                        if depth and depth<distance then
+                            local clear=true
+                            if state.triggerWalls then
+                                local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Exclude
+                                params.FilterDescendantsInstances={player.Character,p.Character}
+                                local hit=Workspace:Raycast(ray.Origin,ray.Direction*depth,params)
+                                clear=not hit or hit.Instance:IsDescendantOf(p.Character)
+                            end
+                            if clear then best=p;distance=depth end
+                        end
+                    end
+                end
+            end
+        end
+        return best
+    end
     local function bodyTarget(camera,mouse)
         local ray=camera:ViewportPointToRay(mouse.X,mouse.Y)
         local params=RaycastParams.new();params.FilterType=Enum.RaycastFilterType.Exclude
@@ -557,17 +599,17 @@ do
             for _,p in ipairs(Players:GetPlayers()) do if eligible(p) then table.insert(params.FilterDescendantsInstances,p.Character) end end
         end
         local hit=Workspace:Raycast(ray.Origin,ray.Direction*2000,params)
-        if not hit then return end
-        local node=hit.Instance
-        -- Only a real character body hit; tools/accessories do not trigger.
+        local node=hit and hit.Instance
+        -- Cosmetics do not trigger themselves; check the body behind them.
         while node and node~=Workspace do
-            if node:IsA('Tool') or node:IsA('Accessory') then return end
+            if node:IsA('Tool') or node:IsA('Accessory') then break end
             if node:IsA('Model') then
                 local p=Players:GetPlayerFromCharacter(node)
                 if p then return eligible(p) and p or nil end
             end
             node=node.Parent
         end
+        return wholeBodyTarget(ray)
     end
     local function squareTarget(camera,mouse)
         local best,distance=nil,math.huge

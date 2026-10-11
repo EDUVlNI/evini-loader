@@ -56,7 +56,7 @@ end}
 workspace=Instance.new('Workspace'); workspace.Gravity=196.2; workspace.DescendantAdded=signal(); workspace.DescendantRemoving=signal()
 function attach(parent,name,child) child.Name=name; child.Parent=parent; parent.children[name]=child; return child end
 function makePart(parent,name,pos)
- local p=Instance.new('Part'); p.Size=Vector3.new(2,2,1);p.Transparency=1;p.Color='original';p.Material='original';p.CanCollide=true;p.Position=pos;p.CFrame={LookVector=Vector3.new(0,0,1)};p.AssemblyLinearVelocity=Vector3.new(10,0,0)
+ local p=Instance.new('Part'); p.Size=Vector3.new(2,2,1);p.Transparency=1;p.Color='original';p.Material='original';p.CanCollide=true;p.Position=pos;p.CFrame={LookVector=Vector3.new(0,0,1),PointToObjectSpace=function(_,v) return v-p.Position end,VectorToObjectSpace=function(_,v) return v end};p.AssemblyLinearVelocity=Vector3.new(10,0,0)
  return attach(parent,name,p)
 end
 function makeChar(name,x)

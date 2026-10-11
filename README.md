@@ -1,10 +1,16 @@
-# EVINI 4.7
+# EVINI 4.8
 
 Hub independente inspirado nas capturas das configurações do Da Hood: painel único translúcido, somente cantos superiores arredondados, base reta, título EV centralizado, abas horizontais, interruptores verdes e botão de fechar vermelho. Não carrega Nitrogen ou Azure.
 
 ```lua
 loadstring(game:HttpGet("https://raw.githubusercontent.com/EDUVlNI/evini-loader/main/main.lua"))()
 ```
+
+## Cabeça e pés sem depender da colisão — 4.8
+
+A detecção sob cursor agora tem uma segunda verificação: interseção do raio com o volume orientado de cada parte do corpo, incluindo cabeça e pés. Funciona mesmo quando a peça não participa do raycast (`CanQuery=false`), e verifica o corpo por trás de acessórios. A checagem de paredes continua ativa quando selecionada. Nenhuma peça é redimensionada por essa detecção; o volume é a caixa de cada parte, não o contorno exato de uma malha. [CanQuery na documentação Roblox](https://create.roblox.com/docs/reference/engine/classes/BasePart#CanQuery).
+
+Permanece um clique por entrada no personagem: mover do tronco para a cabeça sem sair do corpo não conta como outra entrada. Use **Repetir enquanto no alvo** para disparos contínuos no intervalo configurado.
 
 ## Corpo inteiro — 4.7
 
