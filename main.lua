@@ -1,10 +1,9 @@
--- EVINI 4.8: fonte independente. Nao carrega o Nitrogen.
+-- EVINI 5.0: fonte independente. Nao carrega o Nitrogen.
 -- Alteracoes de hitbox sao locais; o servidor pode ignora-las.
 local Players = game:GetService('Players')
 local UIS = game:GetService('UserInputService')
 local RunService = game:GetService('RunService')
 local TweenService = game:GetService('TweenService')
-local ContentProvider = game:GetService('ContentProvider')
 local Workspace=game:GetService('Workspace')
 local GuiService=game:GetService('GuiService')
 local player = Players.LocalPlayer
@@ -12,7 +11,6 @@ assert(player, '[EVINI] Execute em um cliente com LocalPlayer.')
 local env = (type(getgenv) == 'function' and getgenv()) or _G
 if type(env.EVINI) == 'table' and type(env.EVINI.Destroy) == 'function' then pcall(env.EVINI.Destroy) end
 local state = {enabled=false, size=8, transparent=false, knockCheck=true, playerSelection={}, newPlayersSelected=true}
-state.painEnabled=false;state.painSize=8;state.painInvisible=false;state.painKnockCheck=true;state.painTarget='Torso'
 state.serverNotices=true; state.espPlayers=false; state.espEntities=false
 state.camEnabled=false; state.camNPC=false; state.wallCheck=true; state.camTeam=false
 state.fovTransparency=0.22;state.cycleParts=false;state.cycleInterval=0.8;state.fov=140; state.showFov=true; state.hitPart='Head'
@@ -21,7 +19,8 @@ state.autoPrediction=false; state.autoPredMath=250; state.autoBase=0.04; state.s
 state.extraDarkTheme=true;state.adjustableSmoke=true;state.uiDarkness=1;state.deepBlackTheme=true;state.smokeTheme=true;state.uiSounds=true;state.soundVolume=0.2;state.accent='Branco';state.uiOpacity=0.10;state.uiSize=1;state.reduceMotion=false;state.notifications=true
 state.camMarker=false;state.camTracer=false;state.hideVisuals=false
 state.aimViewer=false;state.aimEstimate=false;state.aimLength=120
-state.hideKeyName='L'; state.camKeyName='Q'
+state.hideKeyName='K'; state.camKeyName='Q'
+state.studioUIVersion=true;state.triggerSounds=true
 state.triggerEnabled=false;state.triggerKeyName='T';state.triggerMode='auto';state.triggerSize=32
 state.triggerWalls=true;state.triggerShow=true;state.triggerTeam=false;state.triggerKnock=true
 state.triggerBodyVersion=true;state.triggerDetect='body';state.triggerRepeat=false
@@ -33,7 +32,7 @@ local HttpService=game:GetService('HttpService')
 local settingsFile='evini-settings-'..tostring((game.GameId and game.GameId>0) and game.GameId or game.PlaceId or 0)..'.json'
 local defaults={}
 for k,v in pairs(state) do defaults[k]=v end
-local bounds={triggerSize={4,300},triggerDelay={0,0.5},triggerInterval={0.05,1},painSize={2,30},fovTransparency={0,1},cycleInterval={0.3,3},aimLength={10,500},uiDarkness={0,1},uiOpacity={0,0.8},soundVolume={0,0.6},uiSize={0.45,1.5},size={2,30},fov={30,500},prediction={0,0.5},airPrediction={0,0.5},autoPredMath={100,1000},autoBase={0,0.2},smoothing={0,1}}
+local bounds={triggerSize={4,300},triggerDelay={0,0.5},triggerInterval={0.05,1},fovTransparency={0,1},cycleInterval={0.3,3},aimLength={10,500},uiDarkness={0,1},uiOpacity={0,0.8},soundVolume={0,0.6},uiSize={0.45,1.5},size={2,30},fov={30,500},prediction={0,0.5},airPrediction={0,0.5},autoPredMath={100,1000},autoBase={0,0.2},smoothing={0,1}}
 local options={triggerDetect={body=true,square=true},triggerMode={auto=true,hold=true,toggle=true},triggerMethod={click=true,tool=true},accent={Branco=true,Cinza=true},hitPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true},airPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true}}
 local persistenceStatus='Salvamento indisponível neste executor'
 local persistenceReport=function() end
@@ -50,7 +49,6 @@ local function loadSettings()
             if type(value)=='boolean' then state[key]=value
             elseif bounds[key] and value==value then state[key]=math.clamp(value,bounds[key][1],bounds[key][2])
             elseif options[key] and options[key][value] then state[key]=value
-            elseif key=='painTarget' and #value<=180 and (value=='Torso' or value=='Head' or value:sub(1,5)=='part:') then state[key]=value
             elseif key=='playerSelection' then
                 local count=0
                 for id,enabled in pairs(value) do
@@ -64,7 +62,8 @@ local function loadSettings()
             end
         end
     end
-    if state.hideKeyName==state.camKeyName then state.hideKeyName='L';state.camKeyName='Q' end
+    if data.settings.studioUIVersion~=true then state.hideKeyName='K' end
+    if state.hideKeyName==state.camKeyName then state.hideKeyName='K';state.camKeyName='Q' end
     if state.triggerKeyName==state.hideKeyName or state.triggerKeyName==state.camKeyName then
         for _,key in ipairs({'T','Y','U','P'}) do if key~=state.hideKeyName and key~=state.camKeyName then state.triggerKeyName=key;break end end
     end
@@ -112,50 +111,18 @@ local function round(obj, r) create('UICorner',{CornerRadius=UDim.new(0,r or 12)
 local function text(parent, value, pos, size, fontSize)
     return create('TextLabel',{Text=value,Position=pos,Size=size,BackgroundTransparency=1,TextColor3=Color3.fromRGB(235,235,235),Font=Enum.Font.Gotham,TextSize=fontSize or 14,TextXAlignment=Enum.TextXAlignment.Left,TextWrapped=true},parent)
 end
-local clickSound=create('Sound',{Name='UIClick',SoundId='rbxasset://sounds/electronicpingshort.wav',Volume=state.soundVolume,PlaybackSpeed=1.6},gui)
-local soundStatus='Preparando som da gravação…'
+local clickSound=create('Sound',{Name='UIClick',SoundId='rbxasset://sounds/volume_slider.ogg',Volume=state.soundVolume},gui)
+local soundStatus='Som do painel do Studio'
 local soundReport=function() end
-local function reportSound(value) soundStatus=value;soundReport(value) end
-task.spawn(function()
-    local loader=type(getcustomasset)=='function' and getcustomasset or (type(getsynasset)=='function' and getsynasset)
-    if not loader or type(writefile)~='function' then reportSound('Som padrão: executor sem suporte a áudio local.');return end
-    local ok,asset=pcall(function()
-        local path='evini-settings-click-v1.wav'
-        if type(isfile)~='function' or not isfile(path) then
-            writefile(path,game:HttpGet('https://raw.githubusercontent.com/EDUVlNI/evini-loader/main/assets/settings-click-v1.wav'))
-        end
-        return loader(path)
-    end)
-    if not alive then return end
-    if not ok or type(asset)~='string' or asset=='' then reportSound('Som gravado indisponível; som padrão ativo.');return end
-    local candidate=create('Sound',{Name='RecordedClick',SoundId=asset,PlaybackSpeed=1,Volume=state.soundVolume},gui)
-    local expired=false
-    task.delay(6,function()
-        if alive and not expired and not candidate.IsLoaded then expired=true;candidate:Destroy();reportSound('Som gravado não carregou; som padrão ativo.') end
-    end)
-    local loaded=pcall(function() ContentProvider:PreloadAsync({candidate}) end)
-    if not alive or expired then return end
-    if loaded and candidate.IsLoaded then
-        clickSound:Destroy();clickSound=candidate;reportSound('Som recortado da sua gravação ativo.')
-    else
-        expired=true;candidate:Destroy();reportSound('Som gravado não carregou; som padrão ativo.')
-    end
-end)
 local function playClick()
     if not alive or not state.uiSounds then return end
     clickSound.Volume=state.soundVolume
     pcall(function() clickSound.TimePosition=0;clickSound:Play() end)
 end
 local function button(parent,value,pos,size,radius)
-    local b = create('TextButton',{Text=value,Position=pos,Size=size,BackgroundColor3=Color3.fromRGB(48,48,48),TextColor3=Color3.fromRGB(200,200,200),BorderSizePixel=0,Font=Enum.Font.Gotham,TextSize=13},parent)
-    round(b,radius or 1)
-    create('UIGradient',{Rotation=90,Color=ColorSequence.new(Color3.new(1,1,1),Color3.fromRGB(94,94,94))},b)
-    create('UIStroke',{Color=Color3.fromRGB(0,0,0),Thickness=1,ApplyStrokeMode=Enum.ApplyStrokeMode.Border},b)
-    -- Instance-owned event is released with the button, including roster rows.
+    local b=create('TextButton',{Text=value,Position=pos,Size=size,BackgroundColor3=Color3.fromRGB(35,36,42),BackgroundTransparency=0.18,TextColor3=Color3.fromRGB(221,223,230),BorderSizePixel=0,Font=Enum.Font.GothamMedium,TextSize=15,AutoButtonColor=false},parent)
+    round(b,radius or 7)
     b.Activated:Connect(playClick)
-    b.AutoButtonColor=false
-    create('Frame',{Position=UDim2.fromOffset(1,1),Size=UDim2.new(1,-2,0,1),BackgroundColor3=Color3.fromRGB(118,118,118),BorderSizePixel=0},b)
-    create('Frame',{Position=UDim2.fromOffset(1,1),Size=UDim2.new(0,1,1,-2),BackgroundColor3=Color3.fromRGB(74,74,74),BorderSizePixel=0},b)
     return b
 end
 local function restore(part)
@@ -216,133 +183,6 @@ local function apply()
     for _,part in ipairs(stale) do restore(part) end
 end
 
--- Independent Painhood adapter: existing body/custom parts only; never RootPart.
--- Local geometry is not proof of server-side hit registration.
-local pain={report=function() end}
-do
-local painOriginals={}
-local painBlocked=setmetatable({}, {__mode='k'})
-local painStatus='Desligado'
-local function inPainhood()
-    return game.PlaceId==138308349761110 or game.GameId==10770257767
-end
-local function painPartAllowed(part,character)
-    if not part or not part:IsA('BasePart') or part.Name=='HumanoidRootPart' then return false end
-    local parent=part.Parent
-    while parent and parent~=character do
-        if parent:IsA('Accessory') or parent:IsA('Tool') then return false end
-        parent=parent.Parent
-    end
-    return parent==character
-end
-local function painResolve(character)
-    if state.painTarget=='Torso' then return character:FindFirstChild('UpperTorso') or character:FindFirstChild('Torso') end
-    if state.painTarget=='Head' then return character:FindFirstChild('Head') end
-    if state.painTarget:sub(1,5)~='part:' then return nil end
-    local node=character
-    for segment in state.painTarget:sub(6):gmatch('[^/]+') do
-        node=node and node:FindFirstChild(segment)
-        if not node then return nil end
-    end
-    return painPartAllowed(node,character) and node or nil
-end
-local function painRestore(part)
-    local saved=painOriginals[part];if not saved then return end
-    pcall(function()
-        part.Size=saved.size;part.Transparency=saved.transparency
-        part.Massless=saved.massless;part.RootPriority=saved.rootPriority;part.CanCollide=saved.canCollide
-    end)
-    painOriginals[part]=nil
-end
-local function painRestoreAll()
-    local list={};for part in pairs(painOriginals) do list[#list+1]=part end
-    for _,part in ipairs(list) do painRestore(part) end
-end
-local function sameSize(a,b)
-    return math.abs(a.X-b.X)<0.01 and math.abs(a.Y-b.Y)<0.01 and math.abs(a.Z-b.Z)<0.01
-end
-local function applyPain()
-    if closing or not state.painEnabled or not inPainhood() then
-        painRestoreAll()
-        painStatus=not inPainhood() and 'Disponível apenas no jogo do link informado' or 'Desligado'
-        pain.report(painStatus);return
-    end
-    local active={};local changed,blocked,missing=0,0,0
-    local requested=Vector3.new(state.painSize,state.painSize,state.painSize)
-    for _,target in ipairs(Players:GetPlayers()) do
-        if target~=player and not departing[target] and selectedPlayer(target) then
-            local character=target.Character
-            local hum=character and character:FindFirstChildOfClass('Humanoid')
-            local effects=character and character:FindFirstChild('BodyEffects')
-            local unavailableNow=not hum or hum.Health<=0 or hum:GetState()==Enum.HumanoidStateType.Dead or flagOn(effects,'Dead') or (state.painKnockCheck and flagOn(effects,'K.O'))
-            if not unavailableNow then
-                local part=painResolve(character)
-                if painPartAllowed(part,character) then
-                    if painBlocked[part] or part.Anchored or part.AssemblyRootPart==part then
-                        if painOriginals[part] then painRestore(part);painBlocked[part]=true end
-                        blocked=blocked+1
-                    else
-                        local saved=painOriginals[part]
-                        if not saved then
-                            saved={size=part.Size,transparency=part.Transparency,canCollide=part.CanCollide,massless=part.Massless,rootPriority=part.RootPriority,root=part.AssemblyRootPart,reverts=0};painOriginals[part]=saved
-                        end
-                        if saved.expected and not sameSize(part.Size,saved.expected) then saved.reverts=saved.reverts+1 end
-                        if saved.reverts>=3 or (saved.root and part.AssemblyRootPart~=saved.root) then
-                            painBlocked[part]=true;blocked=blocked+1;painRestore(part)
-                        else
-                            local ok=pcall(function()
-                                -- Avoid promoting the enlarged torso to the assembly root.
-                                part.Massless=true;part.RootPriority=-127;part.CanCollide=false
-                                if not sameSize(part.Size,requested) then part.Size=requested end
-                                if saved.root and part.AssemblyRootPart~=saved.root then error("Raiz física alterada") end
-                                part.Transparency=state.painInvisible and 1 or saved.transparency
-                                part.CanCollide=false
-                            end)
-                            if ok then active[part]=true;saved.expected=requested;changed=changed+1
-                            else painBlocked[part]=true;blocked=blocked+1;painRestore(part) end
-                        end
-                    end
-                else missing=missing+1 end
-            end
-        end
-    end
-    local stale={};for part in pairs(painOriginals) do if not active[part] then stale[#stale+1]=part end end
-    for _,part in ipairs(stale) do painRestore(part) end
-    painStatus=string.format('%d peças ampliadas localmente · %d sem a peça',changed,missing)
-    if blocked>0 then painStatus=painStatus..string.format(' · %d bloqueadas (física/reversão)',blocked) end
-    pain.report(painStatus)
-end
-local function resetPain()
-    painRestoreAll();painBlocked=setmetatable({}, {__mode='k'});applyPain()
-end
-local function painChoices()
-    local choices={{'Torso','Tronco (R6/R15)'},{'Head','Cabeça'}}
-    local seen={}
-    if not inPainhood() then return choices end
-    for _,target in ipairs(Players:GetPlayers()) do
-        local character=target~=player and target.Character
-        if character then
-            for _,part in ipairs(character:GetDescendants()) do
-                if #choices>=50 then return choices end
-                if painPartAllowed(part,character) then
-                    local segments={};local node=part;local valid=true
-                    while node~=character do
-                        if node.Name:find('/',1,true) then valid=false;break end
-                        table.insert(segments,1,node.Name);node=node.Parent
-                    end
-                    local path=table.concat(segments,'/')
-                    if valid and #path<=175 and not seen[path] then
-                        seen[path]=true;choices[#choices+1]={'part:'..path,path}
-                    end
-                end
-            end
-        end
-    end
-    return choices
-end
-
-pain.apply=applyPain;pain.reset=resetPain;pain.restoreAll=painRestoreAll;pain.choices=painChoices
-end
 -- ESP / camera: APIs nativas, sem alterar remotes de armas ou baixar codigo externo.
 local candidates,npcModels,espObjects={},{},{}
 local cameraTarget=nil
@@ -509,17 +349,25 @@ do
         if tool then pcall(function() tool:Deactivate() end) end
         if heldMouse then heldMouse=false;pcall(mouse1release) end
     end
-    local report=function() end
+    local audible=false
+    local onSound=create('Sound',{Name='TriggerOn',SoundId='rbxasset://sounds/electronicpingshort.wav',PlaybackSpeed=1.6,Volume=state.soundVolume},gui)
+    local offSound=create('Sound',{Name='TriggerOff',SoundId='rbxasset://sounds/electronicpingshort.wav',PlaybackSpeed=0.75,Volume=state.soundVolume},gui)
+    local function audioState(value)
+        if value==audible then return end
+        audible=value
+        if not alive or not state.triggerSounds then return end
+        onSound:Stop();offSound:Stop()
+        local sound=value and onSound or offSound;sound.Volume=state.soundVolume
+        pcall(function() sound.TimePosition=0;sound:Play() end)
+    end
     local square=create('Frame',{Name='TriggerSquare',AnchorPoint=Vector2.new(0.5,0.5),BackgroundTransparency=1,BorderSizePixel=0,Visible=false},overlays)
     local outline=create('UIStroke',{Color=Color3.fromRGB(220,220,220),Thickness=2,Transparency=0,ApplyStrokeMode=Enum.ApplyStrokeMode.Border},square)
-    local hud=text(overlays,'',UDim2.fromOffset(18,110),UDim2.fromOffset(360,56),13);hud.Name='TriggerHUD';hud.Visible=false;hud.TextStrokeTransparency=0
-    local function status(value) report(value);hud.Text='EVINI · TRIGGER\n'..value end
+    local function status(value) trigger.lastStatus=value end
     function trigger.reset(suspend)
-        releaseInput();armed=false;pendingTarget=nil;entryFired=false;stableSince=clock;square.Visible=false
+        audioState(false);releaseInput();armed=false;pendingTarget=nil;entryFired=false;stableSince=clock;square.Visible=false
         if suspend then autoPaused=true end
     end
     function trigger.configure() fault=nil;autoPaused=false;trigger.reset() end
-    function trigger.report(fn) report=fn end
     function trigger.press()
         if not state.triggerEnabled or uiOpen or uiBusy or capturing or not focused or UIS:GetFocusedTextBox() then return end
         fault=nil
@@ -636,7 +484,6 @@ do
     end
     local function step(dt)
         clock=clock+dt
-        hud.Visible=state.triggerEnabled and state.triggerShow and not state.hideVisuals
         if not alive or closing or not state.triggerEnabled then trigger.reset();status('Desligado');return end
         if not focused or uiOpen or uiBusy or capturing or UIS:GetFocusedTextBox() then
             trigger.reset(not focused or (not uiOpen and UIS:GetFocusedTextBox()~=nil and UIS:GetFocusedTextBox()~=false))
@@ -649,11 +496,12 @@ do
         local side=state.triggerDetect=='body' and 10 or state.triggerSize
         square.Size=UDim2.fromOffset(side,side);square.Visible=state.triggerShow and not state.hideVisuals
         outline.Color=active and Color3.fromRGB(90,205,125) or Color3.fromRGB(220,220,220)
-        if not active then pendingTarget=nil;status(fault or ((state.triggerMode=='hold' and 'Segure ' or 'Aperte ')..state.triggerKeyName..' para ativar'));return end
+        if not active then audioState(false);pendingTarget=nil;status(fault or ((state.triggerMode=='hold' and 'Segure ' or 'Aperte ')..state.triggerKeyName..' para ativar'));return end
         if knifeEquipped() then
-            releaseInput();pendingTarget=nil;entryFired=false;stableSince=clock
+            audioState(false);releaseInput();pendingTarget=nil;entryFired=false;stableSince=clock
             status('Pausado · faca equipada');return
         end
+        audioState(true)
         local camera=Workspace.CurrentCamera;if not camera then pendingTarget=nil;return end
         local target
         if state.triggerDetect=='body' then target=bodyTarget(camera,mouse) else target=squareTarget(camera,mouse) end
@@ -823,155 +671,117 @@ local function render(dt)
         cameraStatus(cameraTarget and cameraTarget.name or 'Sem alvo',pingSeconds,predictionTime(false))
     end
 end
-local palette={bg=Color3.fromRGB(48*(1-state.uiDarkness),48*(1-state.uiDarkness),48*(1-state.uiDarkness)),panel=Color3.fromRGB(10,10,10),edge=Color3.fromRGB(78,78,78),muted=Color3.fromRGB(198,198,193),white=Color3.fromRGB(235,235,235)}
-local rootUI=create('Frame',{Name='Hub',AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.fromScale(0.5,0.5),Size=UDim2.fromOffset(620,650),BackgroundTransparency=1,Visible=false},gui)
+local palette={bg=Color3.fromRGB(7,7,10),panel=Color3.fromRGB(25,26,31),edge=Color3.fromRGB(104,105,114),muted=Color3.fromRGB(151,153,163),white=Color3.fromRGB(240,240,243)}
+gui.IgnoreGuiInset=true
+local backdrop=create('CanvasGroup',{Name='StudioBackdrop',Size=UDim2.fromScale(1,1),BackgroundTransparency=1,GroupTransparency=1,Visible=false},gui)
+local shade=create('Frame',{Name='Shade',Size=UDim2.fromScale(1,1),BackgroundColor3=palette.bg,BackgroundTransparency=state.uiOpacity,BorderSizePixel=0},backdrop)
+create('UIGradient',{Name='Fade',Transparency=NumberSequence.new({NumberSequenceKeypoint.new(0,0.08),NumberSequenceKeypoint.new(0.25,0.2),NumberSequenceKeypoint.new(0.55,0.60),NumberSequenceKeypoint.new(1,1)})},shade)
+local rootUI=create('Frame',{Name='Hub',Position=UDim2.fromScale(0.065,0.13),Size=UDim2.fromOffset(465,670),BackgroundTransparency=1,Visible=false},gui)
 local uiScale=create('UIScale',{Name='UserScale',Scale=1},rootUI)
-local panel=create('CanvasGroup',{Name='UnifiedPanel',AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.new(0.5,0,0.5,-22),Size=UDim2.new(1,0,1,44),BackgroundTransparency=1,GroupTransparency=1},rootUI)
-local surface=create('Frame',{Name='PanelSurface',Position=UDim2.fromOffset(0,44),Size=UDim2.new(1,0,1,-44),BackgroundTransparency=1},panel)
-local motionScale=create('UIScale',{Name='MotionScale',Scale=0.94},panel)
+local panel=create('CanvasGroup',{Name='UnifiedPanel',Size=UDim2.fromScale(1,1),BackgroundTransparency=1,GroupTransparency=1},rootUI)
+local header=create('Frame',{Name='Header',Size=UDim2.new(1,0,0,108),BackgroundTransparency=1},panel)
+local hide=button(header,'‹  Voltar',UDim2.fromOffset(0,0),UDim2.fromOffset(130,35));hide.Name='Hide';hide.Modal=true;hide.BackgroundTransparency=1;hide.TextXAlignment=Enum.TextXAlignment.Left;hide.TextSize=18
+local title=text(header,'EVINI',UDim2.fromOffset(0,45),UDim2.new(1,-20,0,46),30);title.Name='HubTitle';title.Font=Enum.Font.GothamBold
+local sidebar=create('ScrollingFrame',{Name='Navigation',Position=UDim2.fromOffset(0,108),Size=UDim2.new(1,0,1,-152),CanvasSize=UDim2.fromOffset(0,444),BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=3,ScrollBarImageColor3=palette.muted,ScrollingDirection=Enum.ScrollingDirection.Y},panel)
+local body=create('CanvasGroup',{Name='Content',Position=UDim2.fromOffset(0,108),Size=UDim2.new(1,0,1,-152),BackgroundTransparency=1,Visible=false},panel)
+local footer=create('Frame',{Name='Footer',Position=UDim2.new(0,0,1,-34),Size=UDim2.new(1,0,0,34),BackgroundTransparency=1},panel)
 local fitReadout=function() end
+local refreshSizeControls=function() end
 local function fitUI()
     local camera=Workspace.CurrentCamera
-    if camera then
-        local width=math.floor(math.clamp(580*state.uiSize,420,820)+0.5)
-        local height=math.floor(math.clamp(610*state.uiSize,450,820)+0.5)
-        local scale=math.min(1,(camera.ViewportSize.X-28)/width,(camera.ViewportSize.Y-100)/height)
-        uiScale.Scale=math.max(0.1,scale)
-        rootUI.Size=UDim2.fromOffset(width,height)
-        fitReadout(state.uiSize)
-    end
+    if not camera then return end
+    local v=camera.ViewportSize
+    local desired=math.clamp(math.min(v.X/1440,v.Y/900),0.38,1.8)*state.uiSize
+    uiScale.Scale=math.max(0.1,math.min(desired,(v.X*0.87)/465,(v.Y*0.82)/670))
+    fitReadout(state.uiSize)
 end
--- Clip the lower half of a rounded rectangle, then continue with a straight body.
--- No overlapping translucent fills: only the two upper corners are rounded.
-local topClip=create('Frame',{Name='TopCurveClip',Size=UDim2.new(1,0,0,40),BackgroundTransparency=1,ClipsDescendants=true},surface)
-local topFill=create('Frame',{Name='TopCurve',Size=UDim2.new(1,0,0,80),BackgroundColor3=palette.bg,BackgroundTransparency=state.uiOpacity,BorderSizePixel=0},topClip)
-round(topFill,38);create('UIStroke',{Color=palette.edge,Thickness=1},topFill)
-local lowerFill=create('Frame',{Name='StraightBody',Position=UDim2.fromOffset(0,40),Size=UDim2.new(1,0,1,-40),BackgroundColor3=palette.bg,BackgroundTransparency=state.uiOpacity,BorderSizePixel=0},surface)
-for _,x in ipairs({0,1}) do create('Frame',{Position=UDim2.new(x,-x,0,40),Size=UDim2.new(0,1,1,-40),BackgroundColor3=palette.edge,BorderSizePixel=0},surface) end
-create('Frame',{Position=UDim2.new(0,0,1,-1),Size=UDim2.new(1,0,0,1),BackgroundColor3=palette.edge,BorderSizePixel=0},surface)
-local function region(name,x,y,w,h)
-    return create('Frame',{Name=name,Position=UDim2.fromOffset(x,y),Size=UDim2.fromOffset(w,h),BackgroundTransparency=1,BorderSizePixel=0},surface)
-end
-local header=region('Header',0,0,620,92)
-local sidebar=region('Navigation',10,94,600,46)
-local body=region('Content',10,142,600,462)
-local footer=region('Footer',10,610,600,34)
-header.Size=UDim2.new(1,0,0,76)
-sidebar.Position=UDim2.fromOffset(10,68);sidebar.Size=UDim2.new(1,-20,0,126)
-body.Position=UDim2.fromOffset(10,196);body.Size=UDim2.new(1,-20,1,-238)
-footer.Position=UDim2.new(0,10,1,-38);footer.Size=UDim2.new(1,-20,0,34)
-local title=text(header,'EVINI',UDim2.fromOffset(100,-42),UDim2.new(1,-200,0,84),60)
-title.Name='HubTitle';title.Font=Enum.Font.GothamBlack;title.TextXAlignment=Enum.TextXAlignment.Center;title.TextStrokeTransparency=0;title.TextStrokeColor3=Color3.new(0,0,0)
-create('UIStroke',{Color=Color3.new(0,0,0),Thickness=3},title)
-local titleGlyphs=create('Frame',{Name='BevanTitle',AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.new(0.5,0,0,0),Size=UDim2.new(0.42,0,0,78),BackgroundTransparency=1},header)
-create('UISizeConstraint',{MaxSize=Vector2.new(260,79)},titleGlyphs)
-create('UIAspectRatioConstraint',{AspectRatio=3.309090909090909,DominantAxis=Enum.DominantAxis.Width},titleGlyphs)
-local glyphData='0,19,10,69,1;0,90,10,45,1;0,139,10,114,1;0,267,10,78,1;0,17,11,239,1;0,265,11,82,1;0,16,12,241,1;0,263,12,86,1;0,15,13,243,1;0,262,13,88,2;0,14,14,245,2;0,13,16,247,1;0,261,15,90,2;0,13,17,338,1;0,171,18,3,1;0,213,18,6,1;0,251,18,18,1;0,298,18,6,1;0,252,19,17,1;0,299,19,4,1;0,253,20,16,2;0,254,22,15,1;0,255,23,14,2;0,256,25,13,2;0,257,27,12,1;0,258,28,11,2;0,259,30,10,2;0,260,32,9,1;0,299,20,5,13;0,299,33,4,1;0,13,18,8,17;0,86,18,6,17;0,133,18,8,17;0,172,19,2,16;0,214,19,4,16;0,261,33,8,2;0,299,34,5,1;0,343,18,8,17;0,13,35,16,1;0,335,35,16,1;0,13,36,15,1;0,126,35,22,2;0,165,35,17,2;0,262,35,14,2;0,86,35,13,3;0,263,37,13,1;0,336,36,15,2;0,14,37,14,2;0,52,35,17,5;0,127,37,20,3;0,164,37,18,3;0,264,38,12,2;0,336,38,14,2;0,15,39,13,2;0,127,40,19,1;0,336,40,13,1;0,17,41,11,1;0,86,38,14,4;0,265,40,11,2;0,336,41,12,1;0,19,42,9,1;0,163,40,19,3;0,206,35,20,8;0,266,42,10,1;0,291,35,20,8;0,336,42,10,1;0,128,41,18,3;0,162,43,9,1;0,86,42,15,3;0,267,43,9,2;0,52,40,18,6;0,162,44,8,2;0,64,46,6,1;0,129,44,16,3;0,161,46,9,1;0,268,45,8,2;0,65,47,6,1;0,86,45,16,3;0,130,47,15,1;0,269,47,7,1;0,161,47,8,2;0,65,48,38,2;0,270,48,6,2;0,65,50,29,1;0,95,50,8,1;0,130,48,14,3;0,160,49,9,2;0,95,51,9,1;0,131,51,13,1;0,160,51,8,1;0,271,50,5,2;0,65,51,28,2;0,272,52,4,1;0,96,52,8,2;0,159,52,9,2;0,241,52,1,2;0,65,53,27,2;0,131,52,12,3;0,241,54,2,1;0,273,53,3,2;0,96,54,9,2;0,159,54,8,2;0,65,55,28,2;0,97,56,8,1;0,158,56,9,1;0,241,55,3,2;0,274,55,2,2;0,132,55,10,3;0,275,57,1,1;0,97,57,9,2;0,158,57,8,2;0,241,57,4,2;0,65,57,29,3;0,157,59,9,1;0,241,59,5,1;0,65,60,6,1;0,98,59,8,2;0,133,58,8,3;0,65,61,5,1;0,98,61,9,1;0,133,61,7,1;0,157,60,8,2;0,241,60,6,2;0,156,62,9,1;0,99,62,8,2;0,241,62,7,2;0,99,64,9,1;0,134,62,6,3;0,156,63,8,2;0,241,64,8,1;0,155,65,9,1;0,20,43,8,24;0,100,65,8,2;0,174,43,8,24;0,206,43,8,24;0,218,43,8,24;0,241,65,9,2;0,303,43,8,24;0,336,43,8,24;0,19,67,9,1;0,100,67,9,1;0,135,65,4,3;0,155,66,8,2;0,171,67,11,1;0,291,43,9,25;0,301,67,10,1;0,336,67,10,1;0,17,68,11,1;0,52,62,18,7;0,136,68,3,1;0,169,68,13,1;0,241,67,10,2;0,336,68,12,1;0,16,69,12,1;0,101,68,8,2;0,154,68,9,2;0,168,69,14,1;0,241,69,11,1;0,336,69,13,1;0,15,70,13,1;0,101,70,9,1;0,136,69,2,3;0,154,70,8,2;0,167,70,15,2;0,241,70,12,2;0,336,70,14,2;0,14,71,14,2;0,102,71,8,2;0,137,72,1,1;0,153,72,9,1;0,241,72,13,1;0,13,73,15,1;0,336,72,15,2;0,13,74,16,1;0,52,69,17,6;0,102,73,9,2;0,153,73,8,2;0,166,72,16,3;0,206,67,20,8;0,241,73,14,2;0,291,68,20,7;0,335,74,16,1;0,152,75,9,1;0,291,75,13,1;0,103,75,8,2;0,248,75,8,2;0,291,76,12,1;0,103,77,9,1;0,152,76,8,2;0,151,78,9,1;0,248,77,9,2;0,104,78,8,2;0,248,79,10,1;0,104,80,9,1;0,151,79,8,2;0,150,81,9,1;0,248,80,11,2;0,105,81,8,2;0,248,82,12,1;0,105,83,9,1;0,150,82,8,2;0,248,83,13,2;0,106,84,8,2;0,149,84,9,2;0,106,86,9,1;0,149,86,8,1;0,248,85,14,2;0,248,87,15,1;0,107,87,8,2;0,148,87,9,2;0,107,89,9,1;0,248,88,16,2;0,291,77,13,13;0,148,89,8,2;0,214,75,4,16;0,248,90,17,1;0,291,90,12,1;0,13,75,8,17;0,86,60,8,32;0,108,90,8,2;0,147,91,9,1;0,166,75,8,17;0,213,91,6,1;0,248,91,18,1;0,291,91,13,1;0,343,75,8,17;0,166,92,185,1;0,13,92,81,2;0,108,92,47,2;0,166,93,90,1;0,257,93,94,1;0,14,94,80,1;0,109,94,46,1;0,167,94,89,1;0,258,94,93,1;0,14,95,79,1;0,109,95,45,1;0,167,95,88,1;0,258,95,92,1;0,15,96,78,1;0,110,96,43,1;0,168,96,87,1;0,259,96,91,1;0,16,97,76,1;0,111,97,41,1;0,169,97,85,1;0,260,97,37,1;0,298,97,51,1;0,17,98,73,1;0,112,98,39,1;0,170,98,83,1;0,261,98,34,1;0,299,98,48,1;0,19,99,69,1;0,114,99,35,1;0,172,99,78,1;0,264,99,29,1;0,302,99,43,1;1,219,19,32,1;1,219,20,33,1;1,219,21,34,2;1,219,23,35,1;1,219,24,36,2;1,219,26,37,2;1,219,28,38,2;1,219,30,39,1;1,219,31,40,2;1,22,19,64,15;1,92,19,41,15;1,141,19,30,15;1,175,19,38,15;1,219,33,41,1;1,269,19,29,15;1,304,19,39,15;1,28,34,25,1;1,69,34,17,1;1,98,34,28,1;1,148,34,17,1;1,182,34,24,1;1,226,34,34,1;1,276,34,16,1;1,311,34,25,1;1,99,35,26,1;1,149,35,15,1;1,226,35,35,1;1,99,36,27,1;1,148,36,16,2;1,226,36,36,2;1,100,37,26,2;1,100,39,27,1;1,148,38,15,2;1,226,38,37,2;1,147,40,16,1;1,226,40,38,1;1,70,35,16,7;1,101,40,26,3;1,147,41,15,2;1,226,41,39,2;1,146,43,16,1;1,226,43,40,2;1,102,43,26,3;1,226,45,41,1;1,29,35,23,12;1,71,42,15,5;1,103,46,25,1;1,146,44,15,3;1,226,46,42,2;1,103,47,26,2;1,104,49,25,1;1,145,47,15,3;1,226,48,43,2;1,144,50,16,1;1,226,50,44,1;1,104,50,26,2;1,226,51,14,1;1,242,51,29,1;1,243,52,28,1;1,105,52,25,2;1,144,51,15,3;1,243,53,29,1;1,105,54,26,1;1,244,54,28,1;1,244,55,29,1;1,106,55,25,2;1,143,54,15,3;1,245,56,29,1;1,106,57,26,1;1,246,57,28,1;1,246,58,29,1;1,107,58,25,2;1,142,57,15,3;1,247,59,28,1;1,277,35,14,25;1,71,60,14,1;1,142,60,14,1;1,247,60,44,1;1,29,47,35,15;1,107,60,26,2;1,248,61,43,1;1,141,61,15,2;1,108,62,25,2;1,249,62,42,2;1,108,64,26,1;1,141,63,14,2;1,71,61,15,5;1,250,64,41,2;1,140,65,15,2;1,251,66,40,1;1,109,65,25,3;1,140,67,14,1;1,252,67,39,2;1,139,68,15,2;1,110,68,25,3;1,139,70,14,1;1,253,69,38,2;1,138,71,15,1;1,254,71,37,1;1,111,71,25,3;1,138,72,14,2;1,226,52,15,22;1,255,72,36,2;1,29,62,23,13;1,70,66,16,9;1,112,74,24,1;1,137,74,15,1;1,182,35,23,40;1,226,74,14,1;1,312,35,23,40;1,28,75,25,1;1,69,75,17,1;1,112,75,40,1;1,182,75,24,1;1,226,75,15,1;1,256,74,35,2;1,311,75,25,1;1,112,76,39,1;1,257,76,34,1;1,113,77,38,2;1,258,77,33,2;1,113,79,37,2;1,259,79,32,2;1,114,81,36,1;1,260,81,31,1;1,114,82,35,2;1,261,82,30,2;1,115,84,34,1;1,262,84,29,1;1,115,85,33,2;1,263,85,28,2;1,116,87,32,1;1,264,87,27,2;1,116,88,31,2;1,22,76,64,15;1,117,90,30,1;1,175,76,38,15;1,219,76,29,15;1,265,89,26,2;1,304,76,39,15'
-for color,x,y,w,h in glyphData:gmatch('(%d+),(%d+),(%d+),(%d+),(%d+)') do
-    create('Frame',{Position=UDim2.fromScale(tonumber(x)/364,tonumber(y)/110),Size=UDim2.fromScale(tonumber(w)/364,tonumber(h)/110),BackgroundColor3=color=='1' and Color3.new(1,1,1) or Color3.new(0,0,0),BorderSizePixel=0},titleGlyphs)
-end
-title.Visible=false
-local hide=button(header,'−',UDim2.new(1,-90,0,28),UDim2.fromOffset(30,30));hide.Name='Hide';hide.TextSize=22
-local close=button(header,'×',UDim2.new(1,-52,0,28),UDim2.fromOffset(30,30));close.Name='Close';close.TextSize=22;close.BackgroundColor3=Color3.fromRGB(99,33,29)
-local smaller=button(header,'−',UDim2.fromOffset(22,30),UDim2.fromOffset(24,26));smaller.Name='SmallerUI'
-local scaleReadout=button(header,'100%',UDim2.fromOffset(50,30),UDim2.fromOffset(50,26));scaleReadout.Name='ResetUISize';scaleReadout.TextSize=11
-local larger=button(header,'+',UDim2.fromOffset(104,30),UDim2.fromOffset(24,26));larger.Name='LargerUI'
--- Simple geometric icons stay crisp instead of scaling Unicode glyphs.
-local function lineIcon(b,kind)
-    b.Text=''
-    local rotations=kind=='close' and {45,-45} or (kind=='plus' and {0,90} or {0})
-    for _,rotation in ipairs(rotations) do
-        create('Frame',{Name='IconLine',AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.fromScale(0.5,0.5),Size=UDim2.fromOffset(kind=='close' and 13 or 10,2),Rotation=rotation,BackgroundColor3=Color3.fromRGB(230,230,226),BorderSizePixel=0},b)
-    end
-end
-lineIcon(hide,'minus');lineIcon(close,'close');lineIcon(smaller,'minus');lineIcon(larger,'plus')
-fitReadout=function(scale) scaleReadout.Text=tostring(math.floor(scale*100+0.5))..'%' end
-local refreshSizeControls=function() end
-local function setUISize(value)
-    state.uiSize=math.clamp(value,0.45,1.5);fitUI();refreshSizeControls();queueSave()
-end
-connect(smaller.Activated,function() setUISize(state.uiSize-0.05) end)
-connect(larger.Activated,function() setUISize(state.uiSize+0.05) end)
-connect(scaleReadout.Activated,function() setUISize(1) end)
 local animationVersion=0
 local activeTweens={}
 local destroyed=false
-local function showUI(open,after)
-    if not alive then return end
-    animationVersion=animationVersion+1
-    for _,t in ipairs(activeTweens) do t:Cancel() end
-    activeTweens={};uiBusy=false;uiOpen=open;trigger.reset();resetCamera();fitUI()
-    panel.GroupTransparency=0;panel.Position=UDim2.new(0.5,0,0.5,-22);motionScale.Scale=1
-    rootUI.Visible=open
-    if after then after() end
-end
 local pages,tabs={},{}
-local currentPage='Mira'
-local function refreshTabs()
-    for name,b in pairs(tabs) do
-        local active=name==currentPage
-        b.TextColor3=active and Color3.fromRGB(250,250,246) or palette.muted
-        b.BackgroundColor3=active and Color3.fromRGB(88,88,84) or Color3.fromRGB(40,40,38)
-        local highlight=b:FindFirstChild('SelectedTabHighlight')
-        if highlight then highlight.Visible=active end
+local currentPage=nil
+local navigationTween=nil
+local function refreshTabs() end
+local function navigate(name)
+    currentPage=name
+    sidebar.Visible=name==nil;body.Visible=name~=nil
+    title.Text=name=='Mira' and 'Cam Lock' or name or 'EVINI'
+    hide.Text=name and '‹  Categorias' or '‹  Voltar'
+    for key,p in pairs(pages) do p.scroll.Visible=key==name end
+    if navigationTween then navigationTween:Cancel() end
+    if name then
+        body.GroupTransparency=state.reduceMotion and 0 or 1
+        navigationTween=TweenService:Create(body,TweenInfo.new(state.reduceMotion and 0 or 0.25,Enum.EasingStyle.Quint,Enum.EasingDirection.Out),{GroupTransparency=0})
+        navigationTween:Play()
     end
 end
-local function page(name,index)
-    local frame=create('ScrollingFrame',{Name=name,Position=UDim2.fromOffset(8,12),Size=UDim2.new(1,-16,1,-24),BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=5,ScrollBarImageColor3=green,CanvasSize=UDim2.fromOffset(0,0),Visible=index==1},body)
-    frame.ScrollingDirection=Enum.ScrollingDirection.Y
-    frame.VerticalScrollBarInset=Enum.ScrollBarInset.Always
-    local content=create('Frame',{Name=name..'Content',Position=UDim2.fromOffset(3,2),Size=UDim2.new(1,-9,0,0),BackgroundTransparency=1,BorderSizePixel=0},frame)
-    pages[name]={frame=content,scroll=frame,y=0};accent(frame,'ScrollBarImageColor3')
-    local b=button(sidebar,name,UDim2.new(((index-1)%3)/3,3,0,5+math.floor((index-1)/3)*40),UDim2.new(1/3,-6,0,34)); b.Name='Tab_'..name; b.Font=Enum.Font.GothamMedium;b.TextSize=14
-    if index==7 then b.Size=UDim2.new(1,-6,0,34) end
-    tabs[name]=b
-    create('Frame',{Name='SelectedTabHighlight',Position=UDim2.fromOffset(2,2),Size=UDim2.new(1,-4,0,2),BackgroundColor3=Color3.fromRGB(170,170,164),BorderSizePixel=0,Visible=false},b)
-    connect(b.Activated,function()
-        currentPage=name;refreshTabs()
-        for key,p in pairs(pages) do
-            if p.tabTween then p.tabTween:Cancel() end
-            p.scroll.Visible=key==name
-            if key==name then p.scroll.Position=UDim2.fromOffset(8,12)
-            end
-        end
+local function showUI(open,after)
+    if not alive then return end
+    animationVersion=animationVersion+1;local version=animationVersion
+    for _,t in ipairs(activeTweens) do t:Cancel() end
+    activeTweens={};uiOpen=open;uiBusy=true;trigger.reset();fitUI()
+    if open then
+        if not rootUI.Visible then panel.Position=UDim2.fromOffset(-25,0);panel.GroupTransparency=1 end
+        rootUI.Visible=true;backdrop.Visible=true;navigate(nil)
+    end
+    local duration=state.reduceMotion and 0 or (open and 0.32 or 0.22)
+    local function tween(object,props)
+        local t=TweenService:Create(object,TweenInfo.new(duration,Enum.EasingStyle.Quint,Enum.EasingDirection.Out),props)
+        activeTweens[#activeTweens+1]=t;t:Play()
+    end
+    tween(panel,{Position=UDim2.fromOffset(open and 0 or -25,0),GroupTransparency=open and 0 or 1})
+    tween(backdrop,{GroupTransparency=open and 0 or 1})
+    task.delay(duration,function()
+        if not alive or version~=animationVersion then return end
+        uiBusy=false;rootUI.Visible=open;backdrop.Visible=open
+        if after then after() end
     end)
-    refreshTabs()
+end
+local function page(name,index)
+    local frame=create('ScrollingFrame',{Name=name,Position=UDim2.fromOffset(0,0),Size=UDim2.fromScale(1,1),BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=3,ScrollBarImageColor3=palette.muted,CanvasSize=UDim2.fromOffset(0,0),Visible=false},body)
+    frame.ScrollingDirection=Enum.ScrollingDirection.Y;frame.VerticalScrollBarInset=Enum.ScrollBarInset.Always
+    local content=create('Frame',{Name=name..'Content',Position=UDim2.fromOffset(8,10),Size=UDim2.new(1,-25,0,0),BackgroundTransparency=1,BorderSizePixel=0},frame)
+    pages[name]={frame=content,scroll=frame,y=0}
+    local b=button(sidebar,name=='Mira' and 'Cam Lock' or name,UDim2.fromOffset(8,8+(index-1)*70),UDim2.new(1,-25,0,58));b.Name='Tab_'..name;b.TextSize=22;b.BackgroundTransparency=1;b.TextXAlignment=Enum.TextXAlignment.Left
+    text(b,'›',UDim2.new(1,-28,0,0),UDim2.fromOffset(28,58),25)
+    create('Frame',{Position=UDim2.new(0,0,1,0),Size=UDim2.new(1,0,0,1),BackgroundColor3=palette.edge,BackgroundTransparency=0.65,BorderSizePixel=0},b)
+    tabs[name]=b
+    connect(b.Activated,function() if not uiBusy then navigate(name) end end)
     return pages[name]
 end
 local camPage=page('Mira',1)
 local hitPage=page('Hitbox',2)
-page('Hitbox (Painhood)',3)
 local espPage=page('Visual',4)
 local playersPage=page('Jogadores',5)
 local settingsPage=page('Ajustes',6)
-page('Triggerbot',7)
+page('Triggerbot',3)
 local function subPage() return {frame=create('Frame',{BackgroundTransparency=1,Visible=false,Size=UDim2.new(1,0,0,0)},camPage.frame),y=0} end
 local predPage=subPage()
 local function slot(p,h)
     local y=p.y;p.y=y+h
-    p.frame.Size=UDim2.new(1,p.scroll and -9 or 0,0,p.y+8)
-    if p.scroll then p.scroll.CanvasSize=UDim2.fromOffset(0,p.y+12) end
+    p.frame.Size=UDim2.new(1,p.scroll and -25 or 0,0,p.y+8)
+    if p.scroll then p.scroll.CanvasSize=UDim2.fromOffset(0,p.y+22) end
     return y
 end
 local function label(p,value,description)
-    local y=slot(p,description and 57 or 32)
+    local y=slot(p,description and 85 or 36)
     local t=text(p.frame,value,UDim2.fromOffset(0,y),UDim2.new(1,0,0,20),15); t.Font=Enum.Font.Gotham; accent(t,'TextColor3')
-    if description then local d=text(p.frame,description,UDim2.fromOffset(0,y+23),UDim2.new(1,-4,0,30),11); d.Font=Enum.Font.Gotham; d.TextColor3=palette.muted end
+    if description then local d=text(p.frame,description,UDim2.fromOffset(0,y+23),UDim2.new(1,-4,0,52),13); d.Font=Enum.Font.Gotham; d.TextColor3=palette.muted end
 end
 local function rowText(p,value,y)
-    local backdrop=create('Frame',{Position=UDim2.fromOffset(0,y),Size=UDim2.new(1,0,0,38),BackgroundColor3=palette.panel,BackgroundTransparency=0.45,BorderSizePixel=1,BorderColor3=Color3.fromRGB(5,5,5)},p.frame)
-    local t=text(p.frame,value,UDim2.fromOffset(10,y+7),UDim2.new(1,-132,0,24),13); t.Font=Enum.Font.Gotham; return t
+    local backdrop=create('Frame',{Position=UDim2.fromOffset(0,y),Size=UDim2.new(1,0,0,48),BackgroundColor3=palette.panel,BackgroundTransparency=1,BorderSizePixel=0},p.frame)
+    local t=text(p.frame,value,UDim2.fromOffset(10,y+7),UDim2.new(1,-132,0,36),16); t.Font=Enum.Font.Gotham; return t
 end
 local controlRefresh={}
 local function switch(p,value,key,onChange)
-    local y=slot(p,42); rowText(p,value,y)
+    local y=slot(p,54); rowText(p,value,y)
     local b=button(p.frame,'',UDim2.new(1,-56,0,y+8),UDim2.fromOffset(46,22)); b.Name=key
     local gradient=b:FindFirstChildOfClass('UIGradient');if gradient then gradient.Color=ColorSequence.new(Color3.new(1,1,1)) end
     local corner=b:FindFirstChildOfClass('UICorner');if corner then corner:Destroy() end
     local shadow=create('Frame',{Name='ToggleShadow',Size=UDim2.fromOffset(19,19),BackgroundColor3=Color3.new(0,0,0),BackgroundTransparency=0.2,BorderSizePixel=0},b)
     local dot=create('Frame',{Name='ToggleKnob',Size=UDim2.fromOffset(16,16),BackgroundColor3=palette.white,BorderSizePixel=1,BorderColor3=Color3.fromRGB(50,50,50),ZIndex=2},b)
     local function refresh()
-        b.BackgroundColor3=state[key] and Color3.fromRGB(37,71,41) or Color3.fromRGB(48,48,48)
+        b.BackgroundColor3=state[key] and Color3.fromRGB(100,102,113) or Color3.fromRGB(48,48,48)
         dot.BackgroundColor3=palette.white
         local x=state[key] and 27 or 3
         shadow.Position=UDim2.fromOffset(x-1,3)
@@ -981,7 +791,7 @@ local function switch(p,value,key,onChange)
     refresh();controlRefresh[key]=refresh; return b
 end
 local function field(p,value,key,min,max,step,onChange)
-    local y=slot(p,46); rowText(p,value,y)
+    local y=slot(p,54); rowText(p,value,y)
     local box=create('TextBox',{Name=key=='size' and 'SizeInput' or key,Position=UDim2.new(1,-116,0,y+3),Size=UDim2.fromOffset(106,32),BackgroundColor3=palette.panel,BorderSizePixel=0,Text=tostring(state[key]),TextColor3=palette.white,ClearTextOnFocus=false,Font=Enum.Font.Gotham,TextSize=13},p.frame)
     round(box,3); create('UIStroke',{Color=palette.edge,Thickness=1,ApplyStrokeMode=Enum.ApplyStrokeMode.Border},box)
     local function set(v)
@@ -999,10 +809,11 @@ local function slider(p,value,key,min,max,step,onChange)
     local box,set=field(p,value,key,min,max,step,onChange)
     local y=slot(p,24)-7
     local hit=create('TextButton',{Name=key..'_Slider',Text='',BackgroundTransparency=1,Position=UDim2.fromOffset(12,y),Size=UDim2.new(1,-24,0,22)},p.frame)
-    local track=create('Frame',{Position=UDim2.fromOffset(0,8),Size=UDim2.new(1,0,0,3),BackgroundColor3=palette.edge,BorderSizePixel=0},hit)
+    local track=create('Frame',{Position=UDim2.fromOffset(0,8),Size=UDim2.new(1,0,0,5),BackgroundColor3=palette.edge,BorderSizePixel=0},hit)
     local fill=create('Frame',{Size=UDim2.fromScale((state[key]-min)/(max-min),1),BackgroundColor3=green,BorderSizePixel=0},track)
     accent(fill,'BackgroundColor3')
-    local knob=create('Frame',{AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.fromScale((state[key]-min)/(max-min),0.5),Size=UDim2.fromOffset(7,11),BackgroundColor3=green,BorderSizePixel=0},track)
+    local knob=create('Frame',{AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.fromScale((state[key]-min)/(max-min),0.5),Size=UDim2.fromOffset(18,18),BackgroundColor3=green,BorderSizePixel=0},track)
+    round(knob,20);create('UIStroke',{Color=Color3.fromRGB(29,29,34),Thickness=3},knob)
     accent(knob,'BackgroundColor3')
     local function refresh() local r=(state[key]-min)/(max-min); fill.Size=UDim2.fromScale(r,1); knob.Position=UDim2.fromScale(r,0.5) end
     local refreshBox=controlRefresh[key]
@@ -1017,7 +828,7 @@ local function slider(p,value,key,min,max,step,onChange)
     end)
 end
 local function choice(p,value,key,options,onChange)
-    local y=slot(p,46); local caption=rowText(p,value,y); caption.Size=UDim2.new(1,-184,0,24)
+    local y=slot(p,54); local caption=rowText(p,value,y); caption.Size=UDim2.new(1,-184,0,36)
     local b=button(p.frame,'',UDim2.new(1,-164,0,y+3),UDim2.fromOffset(154,32)); b.Name=key; b.Font=Enum.Font.Gotham; b.TextSize=11
     local function refresh()
         for _,o in ipairs(options) do if o[1]==state[key] then b.Text=o[2]..'  >' end end
@@ -1034,37 +845,6 @@ switch(hitPage,'Box invisível','transparent',apply)
 switch(hitPage,'Knock Check','knockCheck',function() apply(); cameraTarget=nil end)
 field(hitPage,'Tamanho · 2–30 studs','size',2,30,0.1,apply)
 
-do
-local painPage=pages['Hitbox (Painhood)']
-label(painPage,'HITBOX (PAINHOOD)','Expansão alternativa de peças existentes. Não usa a peça da hitbox original. Acertos dependem do servidor.')
-switch(painPage,'Ativar Painhood','painEnabled',pain.reset)
-switch(painPage,'Peça invisível','painInvisible',pain.apply)
-switch(painPage,'Knock Check','painKnockCheck',pain.apply)
-field(painPage,'Tamanho · 2–30 studs','painSize',2,30,0.1,pain.apply)
-local painOptions=pain.choices()
-local painIndex=1
-local painY=slot(painPage,64)
-local painSelector=button(painPage.frame,'',UDim2.fromOffset(0,painY),UDim2.new(1,0,0,54));painSelector.Name='PainTarget';painSelector.TextWrapped=true
-local function refreshPainTarget()
-    local caption='Não encontrada: '..state.painTarget
-    for i,option in ipairs(painOptions) do if option[1]==state.painTarget then painIndex=i;caption=option[2];break end end
-    painSelector.Text='Peça: '..caption..'  >'
-end
-connect(painSelector.Activated,function()
-    painIndex=painIndex%#painOptions+1;state.painTarget=painOptions[painIndex][1]
-    refreshPainTarget();pain.reset();queueSave()
-end)
-local painScanY=slot(painPage,42)
-local painScan=button(painPage.frame,'Atualizar lista de peças',UDim2.fromOffset(0,painScanY),UDim2.new(1,0,0,32));painScan.Name='PainScan'
-connect(painScan.Activated,function() painOptions=pain.choices();painIndex=1;refreshPainTarget() end)
-local painStatusY=slot(painPage,72)
-local painStatusLabel=text(painPage.frame,'Desligado',UDim2.fromOffset(0,painStatusY),UDim2.new(1,-4,0,68),12);painStatusLabel.Name='PainStatus'
-pain.report=function(value) painStatusLabel.Text=value end
-refreshPainTarget()
-label(painPage,'COMO USAR','Comece por Tronco. A lista mostra peças reais dos jogadores. Se o jogo reverter a mudança, a peça deixa de ser forçada.')
-label(painPage,'RESTAURAÇÃO','Desativar restaura tamanho, transparência e colisão. A seleção da aba Jogadores também vale aqui.')
-
-end
 
 do
     local p=pages.Triggerbot
@@ -1074,15 +854,14 @@ do
     choice(p,'Detecção','triggerDetect',{{'body','Corpo inteiro sob cursor'},{'square','Quadrado · corpo inteiro'}},trigger.configure)
     switch(p,'Repetir enquanto no alvo','triggerRepeat',trigger.configure)
     field(p,'Lado do quadrado · pixels','triggerSize',4,300,1,trigger.configure)
-    switch(p,'Mostrar indicador e status','triggerShow')
+    switch(p,'Mostrar indicador do cursor','triggerShow')
+    switch(p,'Sons de ativar / desativar','triggerSounds')
     switch(p,'Verificar paredes','triggerWalls',trigger.configure)
     switch(p,'Ignorar meu time','triggerTeam',trigger.configure)
     switch(p,'Knock Check','triggerKnock',trigger.configure)
     field(p,'Atraso inicial · segundos','triggerDelay',0,0.5,0.01,trigger.configure)
     field(p,'Intervalo de disparos · s','triggerInterval',0.05,1,0.01,trigger.configure)
     choice(p,'Método de disparo','triggerMethod',{{'click','Clique (executor)'},{'tool','Ativar Tool'}},trigger.configure)
-    local status=text(p.frame,'Desligado',UDim2.fromOffset(0,slot(p,60)),UDim2.new(1,-4,0,54),12);status.Name='TriggerStatus'
-    trigger.report(function(value) status.Text=value end)
     label(p,'USO','Ative, equipe a arma e esconda o painel. Automático não exige segurar tecla. T pausa/retoma; Esc e perda de foco desarmam.')
     label(p,'COMPATIBILIDADE','Clique depende do executor. Ativar Tool depende da arma. Desligar paredes permite disparar, mas não atravessa obstáculos.')
 end
@@ -1107,10 +886,10 @@ local function layoutRoster()
         local visible=rosterFilter=='' or p.Name:lower():find(rosterFilter,1,true) or p.DisplayName:lower():find(rosterFilter,1,true)
         item.row.Visible=not not visible
         item.check.Text=selectedPlayer(p) and '✓' or ''
-        item.check.BackgroundColor3=selectedPlayer(p) and Color3.fromRGB(37,71,41) or palette.panel
+        item.check.BackgroundColor3=selectedPlayer(p) and Color3.fromRGB(100,102,113) or palette.panel
         if visible then item.row.Position=UDim2.fromOffset(0,y);y=y+62 end
     end
-    playersPage.frame.Size=UDim2.new(1,-9,0,y+8)
+    playersPage.frame.Size=UDim2.new(1,-25,0,y+8)
     playersPage.scroll.CanvasSize=UDim2.fromOffset(0,y+12)
 end
 local function selectionChanged()
@@ -1192,7 +971,7 @@ switch(espPage,'Marcador do cam lock','camMarker')
 switch(espPage,'Linha do cam lock','camTracer')
 label(espPage,'Só nomes','Etiquetas nativas acompanham os personagens. Sem caixas ou distância; mortos e K.O. ficam ocultos.')
 label(camPage,'CAM LOCK + PREDICT','Clique na tecla para capturar no FOV. Clique de novo para soltar. Esc também solta.')
-local camKeyY=slot(camPage,46)
+local camKeyY=slot(camPage,54)
 switch(camPage,'Ativar cam lock','camEnabled',resetCamera)
 local preset=button(camPage.frame,'Começar com ping de 80–120 ms',UDim2.fromOffset(0,slot(camPage,40)),UDim2.new(1,0,0,30));preset.Name='PingPreset';preset.Font=Enum.Font.Gotham;preset.TextSize=11
 connect(preset.Activated,function()
@@ -1234,7 +1013,7 @@ end
 local function stopCapture() capturing=nil; captureVersion=captureVersion+1; refreshKeys() end
 local function keyField(value,which)
     local p=which=='trigger' and pages.Triggerbot or which~='hide' and camPage or settingsPage
-    local y=which=='cam' and camKeyY or slot(p,46); rowText(p,value,y)
+    local y=which=='cam' and camKeyY or slot(p,54); rowText(p,value,y)
     local b=button(p.frame,'',UDim2.new(1,-116,0,y+3),UDim2.fromOffset(106,32)); b.Name=which=='trigger' and 'TriggerKeybind' or which=='hide' and 'Keybind' or 'CamKeybind'; keyButtons[which]=b
     connect(b.Activated,function()
         if capturing==which then stopCapture(); return end
@@ -1256,7 +1035,7 @@ local function arrangeFolds()
         y=y+40;f.page.frame.Position=UDim2.fromOffset(0,y);f.page.frame.Visible=f.open
         if f.open then y=y+f.page.y+12 end
     end
-    camPage.frame.Size=UDim2.new(1,-9,0,y+10)
+    camPage.frame.Size=UDim2.new(1,-25,0,y+10)
     camPage.scroll.CanvasSize=UDim2.fromOffset(0,y+14)
 end
 for _,definition in ipairs({{'Calibração avançada',predPage}}) do
@@ -1269,10 +1048,9 @@ arrangeFolds()
 local function refreshAppearance()
     green=accents[state.accent]
     for _,binding in ipairs(accentBindings) do if binding[1].Parent then binding[1][binding[2]]=green end end
-    local shade=math.floor(48*(1-state.uiDarkness)+0.5)
-    palette.bg=Color3.fromRGB(shade,shade,shade)
-    topFill.BackgroundColor3=palette.bg;lowerFill.BackgroundColor3=palette.bg
-    topFill.BackgroundTransparency=state.uiOpacity;lowerFill.BackgroundTransparency=state.uiOpacity
+    local darkness=math.floor(48*(1-state.uiDarkness)+0.5)
+    palette.bg=Color3.fromRGB(darkness,darkness,darkness)
+    shade.BackgroundColor3=palette.bg;shade.BackgroundTransparency=state.uiOpacity
     for _,refresh in pairs(controlRefresh) do refresh() end
     refreshTabs()
     fitUI()
@@ -1285,6 +1063,7 @@ slider(settingsPage,'Tamanho da interface · 0,45–1,50','uiSize',0.45,1.5,0.05
 local refreshSize=controlRefresh.uiSize
 controlRefresh.uiSize=function() refreshSize();fitUI() end
 refreshSizeControls=controlRefresh.uiSize
+switch(settingsPage,'Reduzir animações','reduceMotion')
 switch(settingsPage,'Sons dos botões','uiSounds')
 local soundInfo=text(settingsPage.frame,soundStatus,UDim2.fromOffset(0,slot(settingsPage,38)),UDim2.new(1,-4,0,34),11);soundInfo.Name='SoundStatus';soundInfo.TextColor3=palette.muted
 soundReport=function(value) if alive then soundInfo.Text=value end end
@@ -1292,7 +1071,7 @@ slider(settingsPage,'Volume dos botões','soundVolume',0,0.6,0.05)
 
 switch(settingsPage,'Notificações de alvo','notifications')
 switch(settingsPage,'Avisar entradas e saídas','serverNotices')
-local foot=text(footer,'L · HUB     Q · CAM LOCK',UDim2.fromOffset(12,8),UDim2.new(0.45,-12,0,18),10); foot.Font=Enum.Font.Gotham; foot.TextColor3=palette.muted
+local foot=text(footer,'K · HUB     Q · CAM LOCK',UDim2.fromOffset(12,8),UDim2.new(0.45,-12,0,18),10); foot.Font=Enum.Font.Gotham; foot.TextColor3=palette.muted
 local stats=text(footer,'PING —',UDim2.new(0.45,0,0,8),UDim2.new(0.55,-12,0,18),10); stats.Font=Enum.Font.Gotham; stats.TextXAlignment=Enum.TextXAlignment.Right; stats.TextColor3=palette.muted
 cameraStatus=function(name,ping,pred)
     targetReadout.Text='ALVO: '..name
@@ -1330,7 +1109,7 @@ connect(UIS.InputBegan,function(event,processed)
     end
     if processed then return end
     if event.KeyCode==Enum.KeyCode[state.triggerKeyName] then trigger.press()
-    elseif event.KeyCode==hideKey then showUI(not uiOpen)
+    elseif event.KeyCode==hideKey then playClick();showUI(not uiOpen)
     elseif event.KeyCode==camBind and not uiOpen and not uiBusy then
         resetCamera()
         local camera=Workspace.CurrentCamera
@@ -1346,38 +1125,31 @@ connect(UIS.InputEnded,function(event)
     if sliderDrag and (event==sliderDrag.input or event.UserInputType==Enum.UserInputType.MouseButton1) then sliderDrag=nil end
 end)
 connect(UIS.WindowFocusReleased,function() resetCamera();sliderDrag=nil end)
-local dragging,dragStart,panelStart
-connect(header.InputBegan,function(event)
-    if not uiBusy and (event.UserInputType==Enum.UserInputType.MouseButton1 or event.UserInputType==Enum.UserInputType.Touch) then dragging=event; dragStart=event.Position; panelStart=rootUI.Position end
-end)
 connect(UIS.InputChanged,function(event)
     local mouse=event.UserInputType==Enum.UserInputType.MouseMovement
     if sliderDrag and (event==sliderDrag.input or (mouse and sliderDrag.input.UserInputType==Enum.UserInputType.MouseButton1)) then sliderDrag.move(event.Position) end
-    if dragging and (event==dragging or (mouse and dragging.UserInputType==Enum.UserInputType.MouseButton1)) then
-        local d=event.Position-dragStart
-        rootUI.Position=UDim2.new(panelStart.X.Scale,panelStart.X.Offset+d.X,panelStart.Y.Scale,panelStart.Y.Offset+d.Y)
-    end
 end)
-connect(UIS.InputEnded,function(event) if event==dragging or event.UserInputType==Enum.UserInputType.MouseButton1 then dragging=nil end end)
-connect(hide.Activated,function() stopCapture(); showUI(false) end)
-local api={Settings=state,Save=saveSettings}
+connect(hide.Activated,function() stopCapture();if currentPage then navigate(nil) else showUI(false) end end)
+local api={Settings=state,Save=saveSettings,GetTriggerStatus=function() return trigger.lastStatus end}
 function api.Destroy()
     if not alive then return end
     saveSettings();alive=false; animationVersion=animationVersion+1; resetCamera()
     for _,c in ipairs(connections) do c:Disconnect() end
     for _,t in ipairs(activeTweens) do t:Cancel() end
+    if navigationTween then navigationTween:Cancel() end
     trigger.reset();RunService:UnbindFromRenderStep('EVINI_Trigger')
     RunService:UnbindFromRenderStep('EVINI_Camera')
     for _,item in pairs(roster) do item.connection:Disconnect() end
     aimFolder:Destroy()
-    restoreAll(); pain.restoreAll(); overlays:Destroy(); gui:Destroy()
+    restoreAll(); overlays:Destroy(); gui:Destroy()
     espObjects={}; candidates={}; npcModels={};aimItems={}
     if env.EVINI==api then env.EVINI=nil end
 end
 env.EVINI=api
+local close=button(settingsPage.frame,'Encerrar EVINI',UDim2.fromOffset(0,slot(settingsPage,48)),UDim2.new(1,0,0,38));close.Name='Close'
 connect(close.Activated,function()
     if destroyed then return end
-    destroyed=true;closing=true;apply();pain.apply();resetCamera()
+    destroyed=true;closing=true;apply();resetCamera()
     showUI(false,api.Destroy)
     -- Fechamento nao pode ficar preso se outra tecla interromper a animacao.
     task.delay(0.6,function() if alive then api.Destroy() end end)
@@ -1389,7 +1161,7 @@ connect(RunService.Heartbeat,function(dt)
     local cam=Workspace.CurrentCamera
     if cam and cam.ViewportSize~=lastViewport then lastViewport=cam.ViewportSize;fitUI() end
     elapsed=elapsed+dt; collectElapsed=collectElapsed+dt; pingElapsed=pingElapsed+dt
-    if elapsed>=0.1 then elapsed=0; apply();pain.apply() end
+    if elapsed>=0.1 then elapsed=0; apply() end
     if collectElapsed>=0.3 then collectElapsed=0; collectCandidates() end
     if pingElapsed>=1 then
         pingElapsed=0
@@ -1401,20 +1173,7 @@ connect(RunService.Heartbeat,function(dt)
 end)
 collectCandidates()
 RunService:BindToRenderStep('EVINI_Camera',Enum.RenderPriority.Camera.Value+1,render)
-apply();pain.apply()
--- Emblema da crew antes da montagem do hub.
-;(function()
-local splash=create('ImageLabel',{Name='CrewIntro',AnchorPoint=Vector2.new(0.5,0.5),Position=UDim2.fromScale(0.5,0.5),Size=UDim2.fromOffset(140,140),BackgroundTransparency=1,Image='rbxthumb://type=GroupIcon&id=8440749&w=420&h=420',ImageTransparency=1,ScaleType=Enum.ScaleType.Fit},gui)
-local introDone=false
-local function endIntro()
-    if not alive or introDone then return end
-    introDone=true; splash:Destroy(); if not destroyed then showUI(true) end
-end
-task.delay(3,endIntro)
-task.spawn(function()
-    pcall(function() ContentProvider:PreloadAsync({splash}) end)
-    if not alive or introDone then return end
-    endIntro()
-end)
-end)()
+apply()
+-- No loading screen: K opens the categories directly.
+showUI(false)
 return api

@@ -23,6 +23,7 @@ files={};function writefile(p,d) files[p]=d end;function readfile(p) assert(file
 function tick(dt) run.Heartbeat:Fire(dt);frame(dt);advance(dt) end
 ''')
 source=(base.parent/'main.lua').read_text();lua.execute(source)
+lua.execute("advance(.6);press('K');advance(.6)")
 lua.execute(r'''
 advance(.6)
 local s=EVINI.Settings
@@ -31,7 +32,7 @@ assert(s.triggerMode=='auto' and s.triggerDetect=='body','body/auto defaults')
 s.triggerMode='hold';s.triggerDetect='square';s.triggerRepeat=true;s.triggerDelay=.08
 assert(find('Tab_Triggerbot'),'own tab')
 find('triggerEnabled').Activated:Fire();press('T');tick(.2);assert(shots==0,'cannot arm while UI open')
-press('L');tick(.2);assert(shots==0,'closing UI never auto-arms')
+press('K');advance(.4);tick(.2);assert(shots==0,'closing UI never auto-arms')
 local camera=workspace.CurrentCamera.CFrame
 press('T');tick(.04);tick(.04);assert(shots==0,'reaction delay')
 tick(.05);assert(shots==1,'shoot once after stable delay')
@@ -66,14 +67,14 @@ uis.WindowFocusReleased:Fire();tick(.2);assert(shots==5,'focus loss stops');uis.
 s.triggerMode='toggle';press('T');release('T');tick(.2);tick(.2);assert(shots==6,'toggle survives key release')
 press('T');tick(.2);assert(shots==6,'second toggle stops')
 press('T');press('Escape');tick(.2);assert(shots==6,'escape stops')
-press('T');press('L');tick(.2);assert(shots==6,'menu disarms')
+press('T');press('K');advance(.4);tick(.2);assert(shots==6,'menu disarms')
 find('TriggerKeybind').Activated:Fire();press('Q');assert(find('TriggerKeybind').Text=='Em uso','prevent conflicting camera bind');press('R');assert(s.triggerKeyName=='R','editable key')
 find('triggerSize').Text='44';find('triggerSize').FocusLost:Fire();assert(s.triggerSize==44,'numeric square input')
-press('L');press('R');me.Character.hum.Health=0;tick(.2);assert(shots==6,'own death stops');me.Character.hum.Health=100;tick(.2);assert(shots==6,'revival not auto armed')
+press('K');press('R');me.Character.hum.Health=0;tick(.2);assert(shots==6,'own death stops');me.Character.hum.Health=100;tick(.2);assert(shots==6,'revival not auto armed')
 me.Character.children.Gun=nil;gun.Parent=nil;press('R');tick(.2);tick(.2);assert(shots==6,'no Tool no click');press('R')
 gun.Parent=me.Character;me.Character.children.Gun=gun
 -- Missing click capability is diagnosed; native Tool pulse is bounded.
-mouse1click=nil;press('R');tick(.2);assert(find('TriggerStatus').Text:find('Executor sem clique',1,true),'unsupported click status');press('R')
+mouse1click=nil;press('R');tick(.2);assert(EVINI.GetTriggerStatus():find('Executor sem clique',1,true),'unsupported click status');press('R')
 s.triggerMethod='tool';press('R');tick(.1);frame(.1);assert(nativeShots==1 and nativeActive,'native activation')
 advance(.03);assert(not nativeActive,'native pulse releases')
 frame(.2);assert(nativeActive,'next native pulse');press('Escape');assert(not nativeActive,'escape releases owned activation immediately')
@@ -85,7 +86,7 @@ lua.execute(source)
 lua.execute(r'''
 advance(.6)
 assert(EVINI.Settings.triggerKeyName=='R' and EVINI.Settings.triggerSize==44,'settings persisted')
-local count=nativeShots;press('L');tick(.3);tick(.3);assert(nativeShots==count,'saved enabled setting never restores armed state')
+local count=nativeShots;press('K');tick(.3);tick(.3);assert(nativeShots==count,'saved enabled setting never restores armed state')
 EVINI.Destroy()
 ''')
 print('PASS: trigger hold/toggle, stable delay/rate, square bounds, filters, key conflicts, focus/menu/death/Tool gates, native release, persistence and cleanup.')

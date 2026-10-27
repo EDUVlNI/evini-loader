@@ -46,6 +46,7 @@ Instance={new=function(class)
  function n:FindFirstChildOfClass(kind) for _,c in pairs(self.children) do if c:IsA(kind) then return c end end end
  function n:IsDescendantOf(p) local parent=self.Parent; while parent do if parent==p then return true end; parent=parent.Parent end; return false end
  function n:Play() self.playCount=(self.playCount or 0)+1 end
+ function n:Stop() self.stopped=true end
  function n:Destroy()
   self.Parent=nil; self.destroyed=true
   for _,value in pairs(self) do if type(value)=='table' and value.handlers then for _,c in ipairs(value.handlers) do c:Disconnect() end end end
@@ -93,6 +94,7 @@ wall=nil
 function workspace:Raycast() return wall end
 function typeof(v) if type(v)=='table' and v.X~=nil and v.Y~=nil and v.Z~=nil then return 'Vector3' end;return type(v) end
 ColorSequence={new=function(value) return value end};NumberSequence={new=function(value) return value end}
+NumberSequenceKeypoint={new=function(t,v) return {Time=t,Value=v} end}
 RaycastParams={new=function() return {} end}
 tween={}
 function tween:Create(obj,info,props) return {Play=function() for k,v in pairs(props) do obj[k]=v end end,Cancel=function() end} end
@@ -130,10 +132,10 @@ lua.globals().py_decode=lambda value: lua.table_from(json.loads(value), recursiv
 lua.execute("files={}; game.GameId=1234; function writefile(path,data) files[path]=data end; function readfile(path) assert(files[path], 'missing'); return files[path] end")
 lua.execute(source)
 lua.execute(r'''
-advance(0);advance(0.6)
+advance(0.6);press('K');advance(0.6)
 local s=EVINI.Settings
 s.camEnabled=true;s.smoothing=0;s.prediction=0.1
-press('L');advance(0.6)
+press('K');advance(0.6)
 local old=workspace.CurrentCamera.CFrame
 frame(0.1);assert(workspace.CurrentCamera.CFrame==old,'never auto lock without key')
 -- No target when key pressed -> no delayed acquisition.
@@ -181,9 +183,9 @@ for i=1,12 do frame(0.11);local y=workspace.CurrentCamera.CFrame.Target.Y;if y==
 assert(sawHead and sawTorso,'cycles head and torso');s.cycleParts=false
 for _,n in ipairs(nodes) do assert(n.ClassName~='BlurEffect','no external blur') end
 -- Appearance settings, collapsed panels, names-only ESP.
-press('L');advance(0.6)
+press('K');advance(0.6)
 find('accent').Activated:Fire();assert(s.accent=='Cinza','accent change')
-local opacity=find('uiOpacity');opacity.Text='0.2';opacity.FocusLost:Fire();assert(find('StraightBody').BackgroundTransparency==0.2 and find('TopCurve').BackgroundTransparency==0.2,'opacity applies')
+local opacity=find('uiOpacity');opacity.Text='0.2';opacity.FocusLost:Fire();assert(find('Shade').BackgroundTransparency==0.2,'opacity applies')
 local scale=find('uiSize');scale.Text='0.85';scale.FocusLost:Fire()
 s.reduceMotion=true
 find('Calibração avançada').Activated:Fire()
@@ -195,13 +197,13 @@ for _,n in ipairs(nodes) do
 end
 assert(names==3,'player and NPC names')
 local tabs=0;for _,n in ipairs(nodes) do if n.Name:sub(1,4)=='Tab_' then tabs=tabs+1 end end
-assert(tabs==7,'seven tabs including independent triggerbot')
-press('L');advance(0.1)
+assert(tabs==6,'six categories without Painhood')
+press('K');advance(0.1)
 -- Basic earlier regression checks.
 find('enabled').Activated:Fire();assert(enemy.Character.root.Size.X==8,'expansion')
 setFlag(enemy.Character,'K.O',true);run.Heartbeat:Fire(0.1);assert(enemy.Character.root.Size.X==2,'hitbox KO restore')
 setFlag(enemy.Character,'K.O',false)
-press('L');advance(0.6)
+press('K');advance(0.6)
 find('CamKeybind').Activated:Fire();press('E');assert(find('CamKeybind').Text=='E','camera bind near camera controls')
 find('Keybind').Activated:Fire();press('K');assert(find('Keybind').Text=='K','hide bind')
 local box=find('SizeInput');box.Text='11.5';box.FocusLost:Fire()
@@ -213,23 +215,20 @@ for _,n in ipairs(nodes) do assert(n.Name~='Tab_PREDICT','no separate prediction
 
 -- Single panel, scale access and audio controls.
 assert(find('HubTitle').Text=='EVINI','center title')
-assert(find('BevanTitle') and not find('HubTitle').Visible,'native Bevan independent of executor')
+assert(find('HubTitle').Visible and find('StudioBackdrop'),'Studio shell')
 assert(find('UnifiedPanel').ClassName=='CanvasGroup','one animated panel')
 for _,name in ipairs({'Mira','Hitbox','Visual','Jogadores','Ajustes'}) do
  local scroll=find(name);local content=find(name..'Content')
- assert(content.Parent==scroll and content.Size.X.Offset==-9,'dedicated inset content')
+ assert(content.Parent==scroll and content.Size.X.Offset==-25,'dedicated inset content')
  assert(scroll.ScrollingDirection==Enum.ScrollingDirection.Y,'no horizontal scrolling')
  assert(scroll.VerticalScrollBarInset==Enum.ScrollBarInset.Always,'scroll gutter reserved')
 end
 find('Tab_Jogadores').Activated:Fire()
 assert(find('Jogadores').Visible and not find('Mira').Visible,'tab changes scroll container')
-assert(find('Tab_Jogadores').BackgroundColor3[1]==88 and find('Tab_Mira').BackgroundColor3[1]==40,'selected tab stays brighter')
-assert(find('Close').Text=='' and find('LargerUI').Text=='','geometric icons')
-
-local oldScale=find('Hub').Size.X.Offset
-find('SmallerUI').Activated:Fire();assert(find('Hub').Size.X.Offset<oldScale,'shrink immediately')
-find('LargerUI').Activated:Fire();assert(math.abs(find('Hub').Size.X.Offset-oldScale)<0.001,'grow immediately')
-find('ResetUISize').Activated:Fire();assert(s.uiSize==1,'reset size')
+local oldScale=find('UserScale').Scale
+local sizeBox=find('uiSize');sizeBox.Text='0.7';sizeBox.FocusLost:Fire()
+assert(find('UserScale').Scale<oldScale,'scale setting shrinks panel')
+sizeBox.Text='1';sizeBox.FocusLost:Fire()
 local sound=find('UIClick');local played=sound.playCount or 0
 find('Tab_Visual').Activated:Fire();assert(sound.playCount==played+1,'click plays shared sound')
 s.uiSounds=false;played=sound.playCount
@@ -317,11 +316,4 @@ lua.execute(source)
 lua.execute("assert(EVINI.Settings.size==8, 'corruption falls back'); EVINI.Destroy(); writefile=nil; readfile=nil")
 lua.execute(source)
 lua.execute("advance(0);advance(0.6); assert(EVINI.Save()==false,'unsupported storage does not crash'); EVINI.Destroy()")
-# Recorded click integration: load success, original speed, and graceful fallback.
-lua.execute("writefile=function(path,data) files[path]=data end; getcustomasset=function(path) return 'mockasset://'..path end; game.HttpGet=function() return 'MOCK_WAV' end")
-lua.execute(source)
-lua.execute("advance(0);advance(0.6);assert(find('RecordedClick').PlaybackSpeed==1,'original sample speed');assert(find('SoundStatus').Text=='Som recortado da sua gravação ativo.','recorded sound status');find('Tab_Visual').Activated:Fire();assert(find('RecordedClick').playCount==1,'recorded sound plays');EVINI.Destroy()")
-lua.execute("getcustomasset=function() error('unsupported') end")
-lua.execute(source)
-lua.execute("advance(0);advance(0.6);assert(find('UIClick'),'fallback remains');assert(find('SoundStatus').Text=='Som gravado indisponível; som padrão ativo.','load failure shown');EVINI.Destroy()")
-print('PASS: roster selection, notices, native ESP reuse, red aim beams without tool, persistence and cleanup; key-only capture, sticky target, release, no deferred lock or automatic retarget, KO, Escape, own Auto Pred Math, unavailable ping fallback, autosave, reloading preferences/keybinds, no restored latch, corrupt file fallback, no file API, animation and shutdown.')
+print('PASS: gameplay, selection, persistence, Studio navigation, sound, resizing and cleanup regressions.')
