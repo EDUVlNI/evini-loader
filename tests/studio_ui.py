@@ -27,11 +27,19 @@ local s=EVINI.Settings
 assert(s.hideKeyName=='K' and s.camKeyName=='Q','migrate K and resolve old camera conflict')
 assert(s.size==12 and s.prediction==.18 and s.playerSelection['3']==false,'preserve preferences')
 assert(s.painEnabled==nil and s.painSize==nil,'removed adapter settings')
-for _,name in ipairs({'TriggerHUD','TriggerStatus','CrewIntro','BevanTitle','Tab_Hitbox (Painhood)'}) do assert(absent(name),name..' removed') end
+for _,name in ipairs({'TriggerHUD','TriggerStatus','CrewIntro','BevanTitle','Tab_Hitbox (Painhood)','AimViewerStatus','EVINI_AimEffects'}) do assert(absent(name),name..' removed') end
 assert(not find('Hub').Visible and not find('StudioBackdrop').Visible,'start hidden without splash')
 uis.focused=true;press('K');tick(.4);assert(not find('Hub').Visible,'typing does not open menu');uis.focused=false
 press('K');tick(.4)
 assert(find('Hub').Visible and find('Navigation').Visible and not find('Content').Visible,'K opens categories')
+assert(find('HubTitle').TextSize==48,'larger EVINI title')
+for _,name in ipairs({'Mira','Hitbox','Triggerbot','Visual','Jogadores','Ajustes'}) do assert(find('Arrival_'..name).GroupTransparency==0,'stagger finishes') end
+local menu=find('Tab_Ajustes');menu.AbsolutePosition=Vector2.new(200,200);menu.AbsoluteSize=Vector2.new(400,56)
+uis.mouse=Vector2.new(560,228);frame(.3)
+assert(menu.Rotation>0 and menu.Position.X.Offset>8,'menu follows pointer gently')
+s.reduceMotion=true;frame(.1);assert(menu.Rotation==0 and menu.Position.X.Offset==8,'reduced motion disables follow');s.reduceMotion=false
+uis.mouse=Vector2.new(1000,1000)
+
 for _,name in ipairs({'Mira','Hitbox','Triggerbot','Visual','Jogadores','Ajustes'}) do
  find('Tab_'..name).Activated:Fire();tick(.3)
  assert(find(name).Visible and find('Content').Visible and not find('Navigation').Visible,'category '..name)

@@ -79,7 +79,7 @@ function me:GetNetworkPing() return 0.2 end
 players={PlayerAdded=signal(),PlayerRemoving=signal(),LocalPlayer=me,list={me,enemy,friend}}
 function players:GetPlayers() return self.list end
 function players:GetPlayerFromCharacter(m) for _,p in ipairs(self.list) do if p.Character==m then return p end end end
-uis={InputBegan=signal(),InputChanged=signal(),InputEnded=signal(),WindowFocusReleased=signal(),focused=false,mouse=Vector2.new(400,300)}
+uis={InputBegan=signal(),InputChanged=signal(),InputEnded=signal(),WindowFocusReleased=signal(),WindowFocused=signal(),focused=false,mouse=Vector2.new(400,300)}
 function uis:GetFocusedTextBox() return self.focused end
 function uis:GetMouseLocation() return self.mouse end
 run={Heartbeat=signal(),bindings={}}
@@ -253,21 +253,6 @@ search.Text='';search:GetPropertyChangedSignal('Text'):Fire()
 local before=#nodes
 setFlag(enemy.Character,'K.O',true);frame(0.2);setFlag(enemy.Character,'K.O',false);frame(0.2)
 assert(#nodes==before,'no ESP churn on KO recovery')
--- Beam works from head without a Tool if replicated MousePos exists.
-s.aimViewer=true
-local mousePos=attach(enemy.Character.effects,'MousePos',Instance.new('Vector3Value'));mousePos.Value=Vector3.new(10,5,150)
-frame(0.2)
-assert(find('AimRay').Enabled and find('AimPoint').Transparency==0,'replicated aim without tool')
-assert(find('AimPoint').Color[1]==255 and find('AimPoint').Color[2]==48,'red endpoint')
-assert(find('AimRay').Color[1]==255,'red beam')
-local allocations=#nodes
-for i=1,100 do frame(1/60) end
-assert(#nodes==allocations,'reuse viewer effects')
-s.hideVisuals=true;frame(0.2);assert(not find('AimRay').Enabled,'hide effects')
-s.hideVisuals=false;s.aimEstimate=true;frame(0.2)
-assert(find('AimRay').Enabled,'fallback head direction without weapon')
-s.aimEstimate=false;s.aimViewer=false;frame(0.2);assert(not find('AimRay').Enabled,'disable viewer')
--- Initial roster is silent; real joins/leaves get bounded notices and disconnected rows.
 s.newPlayersSelected=false
 local newcomer={UserId=4,Name='NewUser',DisplayName='New',Character=makeChar('New',30)}
 table.insert(players.list,newcomer);players.PlayerAdded:Fire(newcomer)

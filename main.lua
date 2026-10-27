@@ -1,4 +1,4 @@
--- EVINI 5.0: fonte independente. Nao carrega o Nitrogen.
+-- EVINI 5.1: fonte independente. Nao carrega o Nitrogen.
 -- Alteracoes de hitbox sao locais; o servidor pode ignora-las.
 local Players = game:GetService('Players')
 local UIS = game:GetService('UserInputService')
@@ -18,7 +18,7 @@ state.airEnabled=true; state.airPart='HumanoidRootPart'; state.prediction=0.12; 
 state.autoPrediction=false; state.autoPredMath=250; state.autoBase=0.04; state.smoothing=0.22
 state.extraDarkTheme=true;state.adjustableSmoke=true;state.uiDarkness=1;state.deepBlackTheme=true;state.smokeTheme=true;state.uiSounds=true;state.soundVolume=0.2;state.accent='Branco';state.uiOpacity=0.10;state.uiSize=1;state.reduceMotion=false;state.notifications=true
 state.camMarker=false;state.camTracer=false;state.hideVisuals=false
-state.aimViewer=false;state.aimEstimate=false;state.aimLength=120
+state.antiEnabled=false;state.antiKeyName='C';state.antiX=68756;state.antiY=100;state.antiZ=-344
 state.hideKeyName='K'; state.camKeyName='Q'
 state.studioUIVersion=true;state.triggerSounds=true
 state.triggerEnabled=false;state.triggerKeyName='T';state.triggerMode='auto';state.triggerSize=32
@@ -32,7 +32,7 @@ local HttpService=game:GetService('HttpService')
 local settingsFile='evini-settings-'..tostring((game.GameId and game.GameId>0) and game.GameId or game.PlaceId or 0)..'.json'
 local defaults={}
 for k,v in pairs(state) do defaults[k]=v end
-local bounds={triggerSize={4,300},triggerDelay={0,0.5},triggerInterval={0.05,1},fovTransparency={0,1},cycleInterval={0.3,3},aimLength={10,500},uiDarkness={0,1},uiOpacity={0,0.8},soundVolume={0,0.6},uiSize={0.45,1.5},size={2,30},fov={30,500},prediction={0,0.5},airPrediction={0,0.5},autoPredMath={100,1000},autoBase={0,0.2},smoothing={0,1}}
+local bounds={triggerSize={4,300},triggerDelay={0,0.5},triggerInterval={0.05,1},fovTransparency={0,1},cycleInterval={0.3,3},antiX={-100000,100000},antiY={-100000,100000},antiZ={-100000,100000},uiDarkness={0,1},uiOpacity={0,0.8},soundVolume={0,0.6},uiSize={0.45,1.5},size={2,30},fov={30,500},prediction={0,0.5},airPrediction={0,0.5},autoPredMath={100,1000},autoBase={0,0.2},smoothing={0,1}}
 local options={triggerDetect={body=true,square=true},triggerMode={auto=true,hold=true,toggle=true},triggerMethod={click=true,tool=true},accent={Branco=true,Cinza=true},hitPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true},airPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true}}
 local persistenceStatus='Salvamento indisponível neste executor'
 local persistenceReport=function() end
@@ -56,7 +56,7 @@ local function loadSettings()
                         state.playerSelection[id]=enabled;count=count+1
                     end
                 end
-            elseif key=='hideKeyName' or key=='camKeyName' or key=='triggerKeyName' then
+            elseif key=='hideKeyName' or key=='camKeyName' or key=='triggerKeyName' or key=='antiKeyName' then
                 local valid,code=pcall(function() return Enum.KeyCode[value] end)
                 if valid and code and code~=Enum.KeyCode.Unknown and code~=Enum.KeyCode.Escape then state[key]=value end
             end
@@ -70,6 +70,10 @@ local function loadSettings()
     if data.settings.triggerBodyVersion~=true then
         state.triggerEnabled=false;state.triggerMode='auto';state.triggerDetect='body';state.triggerRepeat=false
         state.triggerDelay=0;state.triggerShow=true;state.triggerMethod='click'
+    end
+    state.antiEnabled=false -- never restore an armed velocity modifier
+    if state.antiKeyName==state.hideKeyName or state.antiKeyName==state.camKeyName or state.antiKeyName==state.triggerKeyName then
+        for _,key in ipairs({'C','V','B','N'}) do if key~=state.hideKeyName and key~=state.camKeyName and key~=state.triggerKeyName then state.antiKeyName=key;break end end
     end
     persistenceStatus='Configurações restauradas'
 end
@@ -565,71 +569,32 @@ local function updateCameraVisuals(camera)
     if cameraTarget then local _,hum=targetInfo(cameraTarget);if hum then local part=aimPart(cameraTarget,hum);if part then camPoint=part.Position end end end
     drawTarget(camera,camPoint,camDot,camLine,state.camMarker,state.camTracer)
 end
-local aimItems={}
-local aimReport=function() end
-local aimFolder=create('Folder',{Name='EVINI_AimEffects'},Workspace)
-local aimRed=Color3.fromRGB(255,48,48)
-local function destroyAim(model)
-    local item=aimItems[model]
-    if not item then return end
-    item.start:Destroy();item.finish:Destroy();item.beam:Destroy();item.label:Destroy()
-    aimItems[model]=nil
+-- Standalone implementation of the supplied velocity pulse. No remote loader/group hook.
+local anti={root=nil,velocity=nil,focused=true}
+function anti.restore()
+    local root,velocity=anti.root,anti.velocity;anti.root=nil;anti.velocity=nil
+    if root and velocity then pcall(function() root.AssemblyLinearVelocity=velocity end) end
 end
-local function ensureAim(entry)
-    local item=aimItems[entry.model]
-    if item then return item end
-    local props={Anchored=true,CanCollide=false,CanTouch=false,CanQuery=false,CastShadow=false,Transparency=1,Size=Vector3.new(0.08,0.08,0.08)}
-    local start=create('Part',props,aimFolder);start.Name='AimStart'
-    local finish=create('Part',props,aimFolder);finish.Name='AimPoint';finish.Color=aimRed;finish.Material=Enum.Material.Neon;finish.Shape=Enum.PartType.Ball;finish.Size=Vector3.new(0.18,0.18,0.18)
-    local a=create('Attachment',{},start);local b=create('Attachment',{},finish)
-    local beam=create('Beam',{Name='AimRay',Attachment0=a,Attachment1=b,Color=ColorSequence.new(aimRed),Transparency=NumberSequence.new(0.15),Width0=0.035,Width1=0.025,FaceCamera=true,LightEmission=1,LightInfluence=0,Segments=1,Enabled=false},aimFolder)
-    local tag=create('BillboardGui',{Name='AimViewerLabel',Adornee=finish,Size=UDim2.fromOffset(210,22),StudsOffsetWorldSpace=Vector3.new(0,0.35,0),AlwaysOnTop=true,Enabled=false},gui)
-    local caption=text(tag,'',UDim2.fromScale(0,0),UDim2.fromScale(1,1),11);caption.TextColor3=aimRed;caption.TextStrokeTransparency=0.2;caption.TextXAlignment=Enum.TextXAlignment.Center
-    item={start=start,finish=finish,beam=beam,label=tag,caption=caption};aimItems[entry.model]=item
-    return item
+function anti.step()
+    anti.restore()
+    if not alive or closing or not state.antiEnabled or not anti.focused or uiOpen or uiBusy or capturing or UIS:GetFocusedTextBox() then return end
+    local character=player.Character
+    local root=character and character:FindFirstChild('HumanoidRootPart')
+    local hum=character and character:FindFirstChildOfClass('Humanoid')
+    if not root or not hum or hum.Health<=0 or hum:GetState()==Enum.HumanoidStateType.Dead or root.Anchored then return end
+    local effects=character:FindFirstChild('BodyEffects')
+    if flagOn(effects,'Dead') or flagOn(effects,'K.O') then return end
+    local ok=pcall(function()
+        anti.root=root;anti.velocity=root.AssemblyLinearVelocity
+        root.AssemblyLinearVelocity=Vector3.new(state.antiX,state.antiY,state.antiZ)
+    end)
+    if not ok then anti.restore() end
 end
-local function updateAimViewer()
-    local exact,estimated=0,0
-    local seen={}
-    if state.aimViewer and not state.hideVisuals then
-        for _,entry in ipairs(candidates) do
-            if entry.player then
-                local root=targetInfo(entry)
-                if root then
-                    local head=targetPart(entry.model,'Head') or root
-                    local tool=entry.model:FindFirstChildOfClass('Tool')
-                    local handle=tool and tool:FindFirstChild('Handle')
-                    local origin=handle and handle:IsA('BasePart') and handle or head
-                    local effects=entry.model:FindFirstChild('BodyEffects')
-                    local value=effects and effects:FindFirstChild('MousePos')
-                    local destination,approx=nil,false
-                    if value and value:IsA('Vector3Value') then destination=value.Value
-                    elseif state.aimEstimate then destination=origin.Position+origin.CFrame.LookVector*state.aimLength;approx=true end
-                    if destination and typeof(destination)=='Vector3' then
-                        local delta=destination-origin.Position
-                        local length=delta.Magnitude
-                        if length==length and length>0.01 and length<1e7 then
-                            local item=ensureAim(entry)
-                            seen[entry.model]=true
-                            item.start.Position=origin.Position
-                            item.finish.Position=origin.Position+delta.Unit*math.min(length,state.aimLength)
-                            item.beam.Enabled=true;item.finish.Transparency=0;item.label.Enabled=true
-                            item.caption.Text='@'..entry.player.Name..(approx and ' · direção estimada' or ' · mira replicada')
-                            if approx then estimated=estimated+1 else exact=exact+1 end
-                        end
-                    end
-                end
-            end
-        end
-    end
-    for model,item in pairs(aimItems) do
-        if not model.Parent then destroyAim(model)
-        elseif not seen[model] then item.beam.Enabled=false;item.finish.Transparency=1;item.label.Enabled=false end
-    end
-    aimReport(exact,estimated)
-end
-
-local espElapsed,aimElapsed,statusElapsed=0,0,0
+connect(RunService.Heartbeat,anti.step)
+RunService:BindToRenderStep('EVINI_AntiRestore',Enum.RenderPriority.First.Value,anti.restore)
+connect(UIS.WindowFocusReleased,function() anti.focused=false;anti.restore() end)
+connect(UIS.WindowFocused,function() anti.focused=true end)
+local espElapsed,statusElapsed=0,0
 local function render(dt)
     aimClock=aimClock+dt
     ringStroke.Transparency=state.fovTransparency
@@ -641,8 +606,6 @@ local function render(dt)
     ring.Visible=not state.hideVisuals and state.camEnabled and state.showFov and not uiOpen and not uiBusy
     espElapsed=espElapsed+dt; statusElapsed=statusElapsed+dt
     if espElapsed>=0.15 then espElapsed=0;updateESP() end
-    aimElapsed=aimElapsed+dt
-    if aimElapsed>=1/30 then aimElapsed=0;updateAimViewer() end
     if cameraActive() then
         -- FOV somente na captura por tecla. Nunca adquirir outro alvo por frame.
         local entry=cameraTarget
@@ -679,11 +642,11 @@ create('UIGradient',{Name='Fade',Transparency=NumberSequence.new({NumberSequence
 local rootUI=create('Frame',{Name='Hub',Position=UDim2.fromScale(0.065,0.13),Size=UDim2.fromOffset(465,670),BackgroundTransparency=1,Visible=false},gui)
 local uiScale=create('UIScale',{Name='UserScale',Scale=1},rootUI)
 local panel=create('CanvasGroup',{Name='UnifiedPanel',Size=UDim2.fromScale(1,1),BackgroundTransparency=1,GroupTransparency=1},rootUI)
-local header=create('Frame',{Name='Header',Size=UDim2.new(1,0,0,108),BackgroundTransparency=1},panel)
+local header=create('Frame',{Name='Header',Size=UDim2.new(1,0,0,132),BackgroundTransparency=1},panel)
 local hide=button(header,'‹  Voltar',UDim2.fromOffset(0,0),UDim2.fromOffset(130,35));hide.Name='Hide';hide.Modal=true;hide.BackgroundTransparency=1;hide.TextXAlignment=Enum.TextXAlignment.Left;hide.TextSize=18
-local title=text(header,'EVINI',UDim2.fromOffset(0,45),UDim2.new(1,-20,0,46),30);title.Name='HubTitle';title.Font=Enum.Font.GothamBold
-local sidebar=create('ScrollingFrame',{Name='Navigation',Position=UDim2.fromOffset(0,108),Size=UDim2.new(1,0,1,-152),CanvasSize=UDim2.fromOffset(0,444),BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=3,ScrollBarImageColor3=palette.muted,ScrollingDirection=Enum.ScrollingDirection.Y},panel)
-local body=create('CanvasGroup',{Name='Content',Position=UDim2.fromOffset(0,108),Size=UDim2.new(1,0,1,-152),BackgroundTransparency=1,Visible=false},panel)
+local title=text(header,'EVINI',UDim2.fromOffset(0,43),UDim2.new(1,-20,0,64),48);title.Name='HubTitle';title.Font=Enum.Font.GothamBold
+local sidebar=create('ScrollingFrame',{Name='Navigation',Position=UDim2.fromOffset(0,132),Size=UDim2.new(1,0,1,-176),CanvasSize=UDim2.fromOffset(0,410),BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=3,ScrollBarImageColor3=palette.muted,ScrollingDirection=Enum.ScrollingDirection.Y},panel)
+local body=create('CanvasGroup',{Name='Content',Position=UDim2.fromOffset(0,132),Size=UDim2.new(1,0,1,-176),BackgroundTransparency=1,Visible=false},panel)
 local footer=create('Frame',{Name='Footer',Position=UDim2.new(0,0,1,-34),Size=UDim2.new(1,0,0,34),BackgroundTransparency=1},panel)
 local fitReadout=function() end
 local refreshSizeControls=function() end
@@ -701,11 +664,34 @@ local destroyed=false
 local pages,tabs={},{}
 local currentPage=nil
 local navigationTween=nil
+local menuMotion={items={},version=0,tweens={}}
+function menuMotion.cancel()
+    menuMotion.version=menuMotion.version+1
+    for _,t in ipairs(menuMotion.tweens) do t:Cancel() end
+    menuMotion.tweens={}
+end
+function menuMotion.arrive()
+    menuMotion.cancel();local version=menuMotion.version
+    for i,item in ipairs(menuMotion.items) do
+        item.group.GroupTransparency=state.reduceMotion and 0 or 1
+        item.group.Position=UDim2.fromOffset(state.reduceMotion and 8 or -17,item.y)
+        if not state.reduceMotion then
+            task.delay((i-1)*0.045,function()
+                if not alive or version~=menuMotion.version then return end
+                local t=TweenService:Create(item.group,TweenInfo.new(0.3,Enum.EasingStyle.Quint,Enum.EasingDirection.Out),{GroupTransparency=0,Position=UDim2.fromOffset(8,item.y)})
+                menuMotion.tweens[#menuMotion.tweens+1]=t;t:Play()
+            end)
+        end
+    end
+end
 local function refreshTabs() end
 local function navigate(name)
     currentPage=name
+    menuMotion.cancel()
+    if not name then menuMotion.arrive() end
     sidebar.Visible=name==nil;body.Visible=name~=nil
     title.Text=name=='Mira' and 'Cam Lock' or name or 'EVINI'
+    title.TextSize=name and 34 or 48
     hide.Text=name and '‹  Categorias' or '‹  Voltar'
     for key,p in pairs(pages) do p.scroll.Visible=key==name end
     if navigationTween then navigationTween:Cancel() end
@@ -718,8 +704,9 @@ end
 local function showUI(open,after)
     if not alive then return end
     animationVersion=animationVersion+1;local version=animationVersion
+    menuMotion.cancel()
     for _,t in ipairs(activeTweens) do t:Cancel() end
-    activeTweens={};uiOpen=open;uiBusy=true;trigger.reset();fitUI()
+    activeTweens={};uiOpen=open;uiBusy=true;trigger.reset();anti.restore();fitUI()
     if open then
         if not rootUI.Visible then panel.Position=UDim2.fromOffset(-25,0);panel.GroupTransparency=1 end
         rootUI.Visible=true;backdrop.Visible=true;navigate(nil)
@@ -737,13 +724,44 @@ local function showUI(open,after)
         if after then after() end
     end)
 end
+-- Studio resources for settings/players; simple native geometry for the other categories.
+local function categoryIcon(parent,name)
+    local holder=create('Frame',{Name='CategoryIcon',Position=UDim2.fromOffset(0,16),Size=UDim2.fromOffset(24,24),BackgroundTransparency=1},parent)
+    local assets={Ajustes='GameSettingsTab@2x.png',Jogadores='PlayersTabIcon@2x.png',Mira='CaptureTab@2x.png'}
+    if assets[name] then
+        create('ImageLabel',{Name='StudioIcon',Size=UDim2.fromScale(1,1),BackgroundTransparency=1,Image='rbxasset://textures/ui/Settings/MenuBarIcons/'..assets[name],ImageColor3=palette.white,ScaleType=Enum.ScaleType.Fit},holder)
+        return
+    end
+    local function line(x,y,w,h,rotation)
+        return create('Frame',{Position=UDim2.fromOffset(x,y),Size=UDim2.fromOffset(w,h),Rotation=rotation or 0,BackgroundColor3=palette.white,BorderSizePixel=0},holder)
+    end
+    if name=='Hitbox' then
+        local box=create('Frame',{Position=UDim2.fromOffset(3,3),Size=UDim2.fromOffset(18,18),BackgroundTransparency=1},holder)
+        round(box,3);create('UIStroke',{Color=palette.white,Thickness=1.5},box)
+    elseif name=='Triggerbot' then
+        local ring=create('Frame',{Position=UDim2.fromOffset(5,5),Size=UDim2.fromOffset(14,14),BackgroundTransparency=1},holder)
+        round(ring,20);create('UIStroke',{Color=palette.white,Thickness=1.5},ring)
+        line(11,0,2,6);line(11,18,2,6);line(0,11,6,2);line(18,11,6,2)
+    elseif name=='Visual' then
+        local eye=create('Frame',{Position=UDim2.fromOffset(1,5),Size=UDim2.fromOffset(22,14),BackgroundTransparency=1},holder)
+        round(eye,10);create('UIStroke',{Color=palette.white,Thickness=1.5},eye)
+        local pupil=line(9,9,6,6);round(pupil,6)
+    end
+end
 local function page(name,index)
     local frame=create('ScrollingFrame',{Name=name,Position=UDim2.fromOffset(0,0),Size=UDim2.fromScale(1,1),BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=3,ScrollBarImageColor3=palette.muted,CanvasSize=UDim2.fromOffset(0,0),Visible=false},body)
     frame.ScrollingDirection=Enum.ScrollingDirection.Y;frame.VerticalScrollBarInset=Enum.ScrollBarInset.Always
     local content=create('Frame',{Name=name..'Content',Position=UDim2.fromOffset(8,10),Size=UDim2.new(1,-25,0,0),BackgroundTransparency=1,BorderSizePixel=0},frame)
     pages[name]={frame=content,scroll=frame,y=0}
-    local b=button(sidebar,name=='Mira' and 'Cam Lock' or name,UDim2.fromOffset(8,8+(index-1)*70),UDim2.new(1,-25,0,58));b.Name='Tab_'..name;b.TextSize=22;b.BackgroundTransparency=1;b.TextXAlignment=Enum.TextXAlignment.Left
-    text(b,'›',UDim2.new(1,-28,0,0),UDim2.fromOffset(28,58),25)
+    local group=create('CanvasGroup',{Name='Arrival_'..name,Position=UDim2.fromOffset(8,8+(index-1)*66),Size=UDim2.new(1,-25,0,64),BackgroundTransparency=1},sidebar)
+    local b=button(group,'',UDim2.fromOffset(8,4),UDim2.new(1,-16,0,56));b.Name='Tab_'..name;b.BackgroundTransparency=1
+    local hoverScale=create('UIScale',{Name='HoverScale',Scale=1},b)
+    local glow=create('Frame',{Name='CursorLight',Position=UDim2.fromOffset(0,0),Size=UDim2.fromOffset(84,48),BackgroundColor3=palette.white,BackgroundTransparency=1,BorderSizePixel=0},b);round(glow,24)
+    menuMotion.items[index]={group=group,button=b,scale=hoverScale,glow=glow,y=8+(index-1)*66,x=0,dy=0,weight=0}
+    categoryIcon(b,name)
+    local caption=text(b,name=='Mira' and 'Cam Lock' or name,UDim2.fromOffset(42,0),UDim2.new(1,-82,1,0),20)
+    caption.Name='CategoryLabel';caption.Font=Enum.Font.GothamMedium;caption.TextWrapped=false
+    local arrow=text(b,'›',UDim2.new(1,-22,0,0),UDim2.fromOffset(22,56),23);arrow.TextColor3=palette.muted
     create('Frame',{Position=UDim2.new(0,0,1,0),Size=UDim2.new(1,0,0,1),BackgroundColor3=palette.edge,BackgroundTransparency=0.65,BorderSizePixel=0},b)
     tabs[name]=b
     connect(b.Activated,function() if not uiBusy then navigate(name) end end)
@@ -755,6 +773,23 @@ local espPage=page('Visual',4)
 local playersPage=page('Jogadores',5)
 local settingsPage=page('Ajustes',6)
 page('Triggerbot',3)
+RunService:BindToRenderStep('EVINI_MenuMotion',Enum.RenderPriority.Camera.Value+3,function(dt)
+    if not alive or not uiOpen then return end
+    local mouse=UIS:GetMouseLocation()
+    for _,item in pairs(menuMotion.items) do
+        local b=item.button;local pos,size=b.AbsolutePosition,b.AbsoluteSize
+        local over=uiOpen and not uiBusy and not currentPage and not state.reduceMotion and mouse.X>=pos.X and mouse.X<=pos.X+size.X and mouse.Y>=pos.Y and mouse.Y<=pos.Y+size.Y
+        local x=over and math.clamp(((mouse.X-pos.X)/math.max(1,size.X)-0.5)*2,-1,1) or 0
+        local y=over and math.clamp(((mouse.Y-pos.Y)/math.max(1,size.Y)-0.5)*2,-1,1) or 0
+        local blend=state.reduceMotion and 1 or 1-math.exp(-math.max(0,dt)*14)
+        item.x=item.x+(x-item.x)*blend;item.dy=item.dy+(y-item.dy)*blend
+        item.weight=item.weight+((over and 1 or 0)-item.weight)*blend
+        b.Position=UDim2.fromOffset(8+item.x*3,4+item.dy*2-item.weight*2)
+        b.Rotation=item.x*0.8;item.scale.Scale=1+item.weight*0.012
+        item.glow.Position=UDim2.new(0.5,item.x*math.max(0,size.X/uiScale.Scale/2-50)-42,0,4+item.dy*2)
+        item.glow.BackgroundTransparency=1-item.weight*0.06
+    end
+end)
 local function subPage() return {frame=create('Frame',{BackgroundTransparency=1,Visible=false,Size=UDim2.new(1,0,0,0)},camPage.frame),y=0} end
 local predPage=subPage()
 local function slot(p,h)
@@ -918,7 +953,7 @@ local function removeRoster(p)
     if cameraTarget and cameraTarget.player==p then resetCamera() end
     if p.Character then
         local root=p.Character:FindFirstChild('HumanoidRootPart');if root then restore(root) end
-        destroyESP(p.Character);destroyAim(p.Character)
+        destroyESP(p.Character)
     end
     layoutRoster()
 end
@@ -957,14 +992,11 @@ label(espPage,'Nomes no jogo','Identifique jogadores e NPCs sem cobrir a cena.')
 switch(espPage,'Jogadores','espPlayers')
 switch(espPage,'NPCs / entidades','espEntities')
 
-label(espPage,'Aim Viewer','Raio e ponto vermelhos em 3D. Usa mira replicada mesmo sem arma, quando disponível.')
-switch(espPage,'Ativar Aim Viewer','aimViewer')
-switch(espPage,'Estimar direção sem dados de mira','aimEstimate')
-field(espPage,'Comprimento da linha','aimLength',10,500,1)
-local aimStatus=text(espPage.frame,'Aim Viewer desligado',UDim2.fromOffset(0,slot(espPage,38)),UDim2.new(1,0,0,34),11);aimStatus.Name='AimViewerStatus'
-aimReport=function(exact,estimated)
-    aimStatus.Text=state.aimViewer and ('Replicadas: '..exact..' · estimadas: '..estimated..(exact+estimated==0 and ' · sem dados disponíveis' or '')) or 'Aim Viewer desligado'
-end
+label(espPage,'ANTI-AIM','Pulso de velocidade do trecho enviado. C ativa/desativa. Pode afetar a física; começa desligado a cada execução.')
+switch(espPage,'Ativar anti-aim','antiEnabled',anti.restore)
+field(espPage,'Velocidade X','antiX',-100000,100000,1,anti.restore)
+field(espPage,'Velocidade Y','antiY',-100000,100000,1,anti.restore)
+field(espPage,'Velocidade Z','antiZ',-100000,100000,1,anti.restore)
 label(espPage,'Visibilidade','Ocultar estes desenhos não desliga o recurso de mira.')
 switch(espPage,'Ocultar todos os desenhos','hideVisuals')
 switch(espPage,'Marcador do cam lock','camMarker')
@@ -1009,19 +1041,20 @@ local function refreshKeys()
     if keyButtons.hide then keyButtons.hide.Text=hideKey.Name end
     if keyButtons.cam then keyButtons.cam.Text=camBind.Name end
     if keyButtons.trigger then keyButtons.trigger.Text=state.triggerKeyName end
+    if keyButtons.anti then keyButtons.anti.Text=state.antiKeyName end
 end
 local function stopCapture() capturing=nil; captureVersion=captureVersion+1; refreshKeys() end
 local function keyField(value,which)
-    local p=which=='trigger' and pages.Triggerbot or which~='hide' and camPage or settingsPage
+    local p=which=='anti' and espPage or which=='trigger' and pages.Triggerbot or which~='hide' and camPage or settingsPage
     local y=which=='cam' and camKeyY or slot(p,54); rowText(p,value,y)
-    local b=button(p.frame,'',UDim2.new(1,-116,0,y+3),UDim2.fromOffset(106,32)); b.Name=which=='trigger' and 'TriggerKeybind' or which=='hide' and 'Keybind' or 'CamKeybind'; keyButtons[which]=b
+    local b=button(p.frame,'',UDim2.new(1,-116,0,y+3),UDim2.fromOffset(106,32)); b.Name=which=='anti' and 'AntiKeybind' or which=='trigger' and 'TriggerKeybind' or which=='hide' and 'Keybind' or 'CamKeybind'; keyButtons[which]=b
     connect(b.Activated,function()
         if capturing==which then stopCapture(); return end
         stopCapture(); capturing=which; trigger.reset(); resetCamera(); b.Text='Tecla?'; local version=captureVersion
         task.delay(8,function() if alive and version==captureVersion then stopCapture() end end)
     end)
 end
-keyField('Ocultar / abrir hub','hide'); keyField('Tecla do cam lock','cam');keyField('Tecla do triggerbot','trigger'); refreshKeys()
+keyField('Ocultar / abrir hub','hide'); keyField('Tecla do cam lock','cam');keyField('Tecla do triggerbot','trigger');keyField('Tecla do anti-aim','anti'); refreshKeys()
 local saveText=text(settingsPage.frame,persistenceStatus,UDim2.fromOffset(0,slot(settingsPage,38)),UDim2.new(1,0,0,32),11); saveText.Font=Enum.Font.Gotham;saveText.TextColor3=palette.muted
 persistenceReport=function(message) if alive then saveText.Text=message end end
 label(settingsPage,'COMPATIBILIDADE','Base R6 / R15 com Humanoid. Câmeras e personagens personalizados podem exigir adaptação. Fechar remove efeitos e restaura hitboxes.')
@@ -1071,8 +1104,8 @@ slider(settingsPage,'Volume dos botões','soundVolume',0,0.6,0.05)
 
 switch(settingsPage,'Notificações de alvo','notifications')
 switch(settingsPage,'Avisar entradas e saídas','serverNotices')
-local foot=text(footer,'K · HUB     Q · CAM LOCK',UDim2.fromOffset(12,8),UDim2.new(0.45,-12,0,18),10); foot.Font=Enum.Font.Gotham; foot.TextColor3=palette.muted
-local stats=text(footer,'PING —',UDim2.new(0.45,0,0,8),UDim2.new(0.55,-12,0,18),10); stats.Font=Enum.Font.Gotham; stats.TextXAlignment=Enum.TextXAlignment.Right; stats.TextColor3=palette.muted
+local foot=text(footer,'K · HUB     Q · CAM LOCK',UDim2.fromOffset(12,8),UDim2.new(0.45,-12,0,18),12); foot.Font=Enum.Font.Gotham; foot.TextColor3=palette.muted
+local stats=text(footer,'PING —',UDim2.new(0.45,0,0,8),UDim2.new(0.55,-12,0,18),12); stats.Font=Enum.Font.Gotham; stats.TextXAlignment=Enum.TextXAlignment.Right; stats.TextColor3=palette.muted
 cameraStatus=function(name,ping,pred)
     targetReadout.Text='ALVO: '..name
     stats.Text=(ping and math.floor(ping*1000)..' ms' or 'ping indisponível')..' / '..string.format('%.3f s',pred)
@@ -1101,14 +1134,16 @@ connect(UIS.InputBegan,function(event,processed)
         if event.UserInputType~=Enum.UserInputType.Keyboard then return end
         if event.KeyCode==Enum.KeyCode.Escape then stopCapture(); return end
         if processed or event.KeyCode==Enum.KeyCode.Unknown then return end
-        local assigned={hide=hideKey,cam=camBind,trigger=Enum.KeyCode[state.triggerKeyName]}
+        local assigned={hide=hideKey,cam=camBind,trigger=Enum.KeyCode[state.triggerKeyName],anti=Enum.KeyCode[state.antiKeyName]}
         for role,key in pairs(assigned) do if role~=capturing and event.KeyCode==key then keyButtons[capturing].Text='Em uso';return end end
         if event.KeyCode==Enum.KeyCode.Escape then stopCapture(); return end
-        if capturing=='hide' then hideKey=event.KeyCode;state.hideKeyName=hideKey.Name elseif capturing=='trigger' then state.triggerKeyName=event.KeyCode.Name;trigger.reset() else camBind=event.KeyCode;state.camKeyName=camBind.Name end
+        if capturing=='anti' then state.antiKeyName=event.KeyCode.Name;anti.restore() elseif capturing=='hide' then hideKey=event.KeyCode;state.hideKeyName=hideKey.Name elseif capturing=='trigger' then state.triggerKeyName=event.KeyCode.Name;trigger.reset() else camBind=event.KeyCode;state.camKeyName=camBind.Name end
         queueSave();stopCapture(); return
     end
     if processed then return end
-    if event.KeyCode==Enum.KeyCode[state.triggerKeyName] then trigger.press()
+    if event.KeyCode==Enum.KeyCode[state.antiKeyName] then
+        state.antiEnabled=not state.antiEnabled;anti.restore();controlRefresh.antiEnabled();playClick();queueSave()
+    elseif event.KeyCode==Enum.KeyCode[state.triggerKeyName] then trigger.press()
     elseif event.KeyCode==hideKey then playClick();showUI(not uiOpen)
     elseif event.KeyCode==camBind and not uiOpen and not uiBusy then
         resetCamera()
@@ -1137,12 +1172,13 @@ function api.Destroy()
     for _,c in ipairs(connections) do c:Disconnect() end
     for _,t in ipairs(activeTweens) do t:Cancel() end
     if navigationTween then navigationTween:Cancel() end
+    menuMotion.cancel();RunService:UnbindFromRenderStep('EVINI_MenuMotion')
     trigger.reset();RunService:UnbindFromRenderStep('EVINI_Trigger')
     RunService:UnbindFromRenderStep('EVINI_Camera')
     for _,item in pairs(roster) do item.connection:Disconnect() end
-    aimFolder:Destroy()
+    anti.restore();RunService:UnbindFromRenderStep('EVINI_AntiRestore')
     restoreAll(); overlays:Destroy(); gui:Destroy()
-    espObjects={}; candidates={}; npcModels={};aimItems={}
+    espObjects={}; candidates={}; npcModels={}
     if env.EVINI==api then env.EVINI=nil end
 end
 env.EVINI=api

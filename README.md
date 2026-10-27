@@ -1,6 +1,6 @@
-# EVINI 5.0 · Da Hood
+# EVINI 5.1 · Da Hood
 
-Interface refeita a partir do painel de Configurações do projeto do Roblox Studio: coluna à esquerda, degradê preto horizontal, tipografia Gotham, controles claros e abertura/fechamento com fade e deslocamento. Sem a moldura antiga, tela de carregamento ou Play.
+Interface refeita a partir do painel de Configurações do projeto do Roblox Studio: coluna à esquerda, degradê preto horizontal, tipografia Gotham, controles claros e abertura/fechamento com fade e deslocamento. Sem a moldura antiga, tela de carregamento ou Play. Título EVINI ampliado, títulos de categoria menores, espaçamento revisado e ícones brancos; Ajustes usa a mesma engrenagem local do painel original do Studio. As categorias entram em sequência com fade e deslocamento; ao passar o mouse, têm inclinação sutil e brilho que acompanha o cursor. Reduzir animações desativa esses movimentos.
 
 ```lua
 loadstring(game:HttpGet("https://raw.githubusercontent.com/EDUVlNI/evini-loader/main/main.lua"))()
@@ -17,11 +17,17 @@ A primeira execução desta versão migra o atalho do painel para K, resolvendo 
 - **Cam Lock:** tecla de captura/liberação, FOV e transparência, seleção da parte do corpo, filtros de parede/time/NPC, suavização e calibração avançada de previsão manual, ping e Air Part. A captura continua exigindo a tecla; não adquire outro alvo automaticamente.
 - **Hitbox:** tamanho numérico, invisibilidade, Knock Check e seleção de jogadores. A implementação normal foi preservada. **Hitbox (Painhood) foi removida**, incluindo sua lógica e preferências.
 - **Triggerbot:** tecla, modos automático/segurar/alternar, corpo inteiro ou área quadrada, repetição, atraso, intervalo, filtros e método de disparo. Continua pausando com faca equipada.
-- **Visual:** nomes de jogadores/entidades, Aim Viewer e indicadores de câmera.
+- **Visual:** nomes de jogadores/entidades, anti-aim e indicadores de câmera. O Aim Viewer antigo foi removido.
 - **Jogadores:** lista, pesquisa, seleção individual, marcar/desmarcar todos e preferência para novos jogadores.
 - **Ajustes:** aparência, atalhos, áudio, notificações e salvamento local quando disponível.
 
 Fechar o painel não desliga as opções habilitadas. Hitbox e ESP continuam atualizando. A interação com o painel pausa os disparos do trigger; o modo automático habilitado retoma quando o painel fecha. Segurar/alternar continuam exigindo sua tecla. Escape, perda de foco e indisponibilidade do personagem suspendem o trigger.
+
+## Anti-aim · C
+
+Implementação independente da parte legível enviada pelo usuário: aplica os valores X/Y/Z na velocidade linear do próprio personagem durante o Heartbeat e restaura a velocidade capturada antes da renderização seguinte. Os valores iniciais são `68756`, `100`, `-344`; os campos aceitam números entre -100000 e 100000. A tecla padrão **C** pode ser alterada na categoria Visual, com proteção contra conflitos.
+
+Começa desligado a cada execução, mesmo com preferências salvas. Desligar, abrir o painel, perder foco, morrer, trocar de personagem ou encerrar restaura qualquer alteração pendente. Pausa com o painel aberto, falta de foco ou personagem indisponível; retoma quando essas condições cessam se ainda habilitado. Não inclui a falsificação de `IsInGroup` nem executa o carregador remoto ofuscado fornecido. Alterar velocidade pode afetar a física; não há validação em jogo de replicação ou eficácia contra mira.
 
 ## Sons do trigger
 
@@ -43,4 +49,5 @@ PYTHONPATH=../../work/python-libs python3 tests/regression.py
 PYTHONPATH=../../work/python-libs python3 tests/triggerbot.py
 PYTHONPATH=../../work/python-libs python3 tests/trigger_body.py
 PYTHONPATH=../../work/python-libs python3 tests/studio_ui.py
+PYTHONPATH=../../work/python-libs python3 tests/anti_velocity.py
 ```
