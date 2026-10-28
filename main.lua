@@ -1,4 +1,4 @@
--- EVINI 5.1: fonte independente. Nao carrega o Nitrogen.
+-- EVINI 5.2: fonte independente. Nao carrega o Nitrogen.
 -- Alteracoes de hitbox sao locais; o servidor pode ignora-las.
 local Players = game:GetService('Players')
 local UIS = game:GetService('UserInputService')
@@ -18,6 +18,7 @@ state.airEnabled=true; state.airPart='HumanoidRootPart'; state.prediction=0.12; 
 state.autoPrediction=false; state.autoPredMath=250; state.autoBase=0.04; state.smoothing=0.22
 state.extraDarkTheme=true;state.adjustableSmoke=true;state.uiDarkness=1;state.deepBlackTheme=true;state.smokeTheme=true;state.uiSounds=true;state.soundVolume=0.2;state.accent='Branco';state.uiOpacity=0.10;state.uiSize=1;state.reduceMotion=false;state.notifications=true
 state.camMarker=false;state.camTracer=false;state.hideVisuals=false
+state.viewerEnabled=false;state.viewerMode='character'
 state.antiEnabled=false;state.antiKeyName='C';state.antiX=68756;state.antiY=100;state.antiZ=-344
 state.hideKeyName='K'; state.camKeyName='Q'
 state.studioUIVersion=true;state.triggerSounds=true
@@ -33,7 +34,7 @@ local settingsFile='evini-settings-'..tostring((game.GameId and game.GameId>0) a
 local defaults={}
 for k,v in pairs(state) do defaults[k]=v end
 local bounds={triggerSize={4,300},triggerDelay={0,0.5},triggerInterval={0.05,1},fovTransparency={0,1},cycleInterval={0.3,3},antiX={-100000,100000},antiY={-100000,100000},antiZ={-100000,100000},uiDarkness={0,1},uiOpacity={0,0.8},soundVolume={0,0.6},uiSize={0.45,1.5},size={2,30},fov={30,500},prediction={0,0.5},airPrediction={0,0.5},autoPredMath={100,1000},autoBase={0,0.2},smoothing={0,1}}
-local options={triggerDetect={body=true,square=true},triggerMode={auto=true,hold=true,toggle=true},triggerMethod={click=true,tool=true},accent={Branco=true,Cinza=true},hitPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true},airPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true}}
+local options={viewerMode={character=true,aim=true},triggerDetect={body=true,square=true},triggerMode={auto=true,hold=true,toggle=true},triggerMethod={click=true,tool=true},accent={Branco=true,Cinza=true},hitPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true},airPart={Head=true,UpperTorso=true,LowerTorso=true,HumanoidRootPart=true}}
 local persistenceStatus='Salvamento indisponível neste executor'
 local persistenceReport=function() end
 local canSave=type(writefile)=='function' and type(readfile)=='function'
@@ -78,6 +79,7 @@ local function loadSettings()
     persistenceStatus='Configurações restauradas'
 end
 loadSettings()
+state.viewerEnabled=false -- observation is session-only; never auto-start on reload
 local saveVersion=0
 local function saveSettings()
     if not canSave then return false end
@@ -340,6 +342,7 @@ local camBind=Enum.KeyCode[state.camKeyName]
 local capturing=nil
 local uiOpen=false
 local uiBusy=false
+local viewer={active=false,userId=nil,target=nil,clock=0,source=nil,sourceConnection=nil,snapshot=nil,onState=function() end,onSelection=function() end,status="Selecione um jogador"}
 
 local trigger={}
 do
@@ -489,6 +492,7 @@ do
     local function step(dt)
         clock=clock+dt
         if not alive or closing or not state.triggerEnabled then trigger.reset();status('Desligado');return end
+        if viewer.active then trigger.reset(true);status('Pausado · Spectate ativo');return end
         if not focused or uiOpen or uiBusy or capturing or UIS:GetFocusedTextBox() then
             trigger.reset(not focused or (not uiOpen and UIS:GetFocusedTextBox()~=nil and UIS:GetFocusedTextBox()~=false))
             status('Pausado · interface, digitação ou foco');return
@@ -540,7 +544,7 @@ do
 end
 
 local function cameraActive()
-    if closing or not state.camEnabled or uiOpen or uiBusy or capturing or UIS:GetFocusedTextBox() then return false end
+    if viewer.active or closing or not state.camEnabled or uiOpen or uiBusy or capturing or UIS:GetFocusedTextBox() then return false end
     return latched and cameraTarget~=nil
 end
 local function resetCamera() local had=cameraTarget;latched=false;cameraTarget=nil;if had then notifyTarget('Alvo liberado') end end
@@ -577,7 +581,7 @@ function anti.restore()
 end
 function anti.step()
     anti.restore()
-    if not alive or closing or not state.antiEnabled or not anti.focused or uiOpen or uiBusy or capturing or UIS:GetFocusedTextBox() then return end
+    if not alive or closing or not state.antiEnabled or viewer.active or not anti.focused or uiOpen or uiBusy or capturing or UIS:GetFocusedTextBox() then return end
     local character=player.Character
     local root=character and character:FindFirstChild('HumanoidRootPart')
     local hum=character and character:FindFirstChildOfClass('Humanoid')
@@ -594,16 +598,179 @@ connect(RunService.Heartbeat,anti.step)
 RunService:BindToRenderStep('EVINI_AntiRestore',Enum.RenderPriority.First.Value,anti.restore)
 connect(UIS.WindowFocusReleased,function() anti.focused=false;anti.restore() end)
 connect(UIS.WindowFocused,function() anti.focused=true end)
+-- Spectate owns only our local Camera; another client's Camera is not replicated.
+do
+    local notice=create('Frame',{Name='SpectateNotice',AnchorPoint=Vector2.new(0.5,0),Position=UDim2.new(0.5,0,0,80),Size=UDim2.new(0.9,0,0,78),BackgroundColor3=Color3.fromRGB(12,12,15),BackgroundTransparency=0.15,BorderSizePixel=0,Visible=false},overlays)
+    create('UISizeConstraint',{MaxSize=Vector2.new(600,78)},notice);round(notice,7)
+    local caption=text(notice,'',UDim2.fromOffset(12,6),UDim2.new(1,-96,1,-12),13)
+    local exitButton=button(notice,'Parar',UDim2.new(1,-78,0,23),UDim2.fromOffset(66,32));exitButton.Name='StopSpectate'
+    local dot=create('Frame',{Name='SpectateAimPoint',AnchorPoint=Vector2.new(0.5,0.5),Size=UDim2.fromOffset(7,7),BackgroundColor3=Color3.fromRGB(255,64,64),BorderSizePixel=0,Visible=false},overlays);round(dot,7)
+    local function validVector(v)
+        return typeof(v)=='Vector3' and v.X==v.X and v.Y==v.Y and v.Z==v.Z and math.abs(v.X)<1e7 and math.abs(v.Y)<1e7 and math.abs(v.Z)<1e7
+    end
+    local function lookup(id)
+        for _,p in ipairs(Players:GetPlayers()) do if p.UserId==id and p~=player and not departing[p] then return p end end
+    end
+    function viewer.search(query)
+        query=type(query)=='string' and query:match('^%s*(.-)%s*$'):lower() or ''
+        local usernameOnly=query:sub(1,1)=='@';query=query:gsub('^@','')
+        local users,names,partial={},{},{}
+        for _,p in ipairs(Players:GetPlayers()) do
+            if p~=player and not departing[p] then
+                local name,display=p.Name:lower(),p.DisplayName:lower()
+                if query~='' and name==query then users[#users+1]=p
+                elseif not usernameOnly and query~='' and display==query then names[#names+1]=p
+                elseif query=='' or name:find(query,1,true) or (not usernameOnly and display:find(query,1,true)) then partial[#partial+1]=p end
+            end
+        end
+        local result=#users>0 and users or #names>0 and names or partial
+        table.sort(result,function(a,b) if a.Name==b.Name then return a.UserId<b.UserId end;return a.Name:lower()<b.Name:lower() end)
+        return result
+    end
+    local function report(message)
+        local p=viewer.target
+        local summary=(p and (p.DisplayName..' (@'..p.Name..') · ID '..tostring(p.UserId)..'\n') or '')..message
+        if viewer.status==message and caption.Text==summary and notice.Visible==viewer.active then return end
+        viewer.status=message;viewer.onState(message)
+        caption.Text=summary;notice.Visible=viewer.active
+    end
+    function viewer.clearSource()
+        if viewer.sourceConnection then viewer.sourceConnection:Disconnect() end
+        viewer.sourceConnection=nil;viewer.source=nil;viewer.sourceTime=nil;viewer.sourceConfirmed=false
+    end
+    function viewer.restore()
+        local saved=viewer.snapshot;viewer.snapshot=nil;dot.Visible=false
+        if not saved then return end
+        local camera=saved.camera
+        local subject=saved.subject
+        local fallback=not subject or not subject.Parent or (subject:IsA('Humanoid') and subject.Health<=0)
+        if fallback then subject=player.Character and player.Character:FindFirstChildOfClass('Humanoid') end
+        pcall(function()
+            if subject then camera.CameraSubject=subject end
+            camera.CFrame=saved.cframe;camera.Focus=saved.focus;camera.FieldOfView=saved.fov
+            camera.CameraType=fallback and Enum.CameraType.Custom or saved.kind
+        end)
+    end
+    local function claim(camera)
+        if viewer.snapshot and viewer.snapshot.camera==camera then return end
+        viewer.restore()
+        viewer.snapshot={camera=camera,kind=camera.CameraType,subject=camera.CameraSubject,cframe=camera.CFrame,focus=camera.Focus,fov=camera.FieldOfView}
+    end
+    function viewer.stop(message,clear)
+        viewer.active=false;state.viewerEnabled=false;viewer.restore();viewer.clearSource();viewer.character=nil
+        if clear then viewer.userId=nil;viewer.target=nil end
+        report(message or 'Observação encerrada')
+    end
+    function viewer.start()
+        local target=viewer.userId and lookup(viewer.userId)
+        if not target then viewer.stop('Selecione um jogador presente no servidor',true);return false end
+        viewer.target=target;viewer.active=true;state.viewerEnabled=true
+        resetCamera();trigger.reset(true);anti.restore();report('Preparando Spectate aproximado')
+        return true
+    end
+    function viewer.selectId(id)
+        if type(id)~='number' or id~=id then return false end
+        local target=lookup(id)
+        if not target then report('Jogador não encontrado no servidor');return false end
+        viewer.clearSource();viewer.character=nil;viewer.userId=id;viewer.target=target
+        return viewer.start()
+    end
+    function viewer.selectQuery(query)
+        local matches=viewer.search(query)
+        if #matches==1 then viewer.onSelection('Selecionado: @'..matches[1].Name);return viewer.selectId(matches[1].UserId) end
+        local message=#matches==0 and 'Nenhum jogador encontrado' or tostring(#matches)..' correspondências: escolha pelo @username na lista de Jogadores'
+        viewer.onSelection(message)
+        if not viewer.active then report(message) end
+        return false
+    end
+    local function readAim(character,origin)
+        if viewer.source and (not viewer.source.Parent or not viewer.source:IsDescendantOf(character)) then viewer.clearSource() end
+        if not viewer.source and viewer.clock>=(viewer.nextProbe or 0) then
+            viewer.nextProbe=viewer.clock+0.2
+            local effects=character:FindFirstChild('BodyEffects')
+            local candidate=(effects and (effects:FindFirstChild('MousePos') or effects:FindFirstChild('MousePosition'))) or character:FindFirstChild('MousePos') or character:FindFirstChild('MousePosition')
+            if candidate and (candidate:IsA('Vector3Value') or candidate:IsA('CFrameValue')) then
+                viewer.source=candidate;viewer.sourceTime=viewer.clock;viewer.sourceConfirmed=false
+                viewer.sourceConnection=candidate:GetPropertyChangedSignal('Value'):Connect(function()
+                    if viewer.source==candidate then viewer.sourceTime=viewer.clock;viewer.sourceConfirmed=true end
+                end)
+            end
+        end
+        local source=viewer.source
+        if not source or not viewer.sourceTime or viewer.clock-viewer.sourceTime>0.75 then return nil end
+        local value=source.Value
+        if source:IsA('CFrameValue') then value=typeof(value)=='CFrame' and value.Position or nil end
+        if not validVector(value) then return nil end
+        local distance=(value-origin).Magnitude
+        if distance<0.01 or distance>5000 then return nil end
+        return value
+    end
+    function viewer.step(dt)
+        viewer.clock=viewer.clock+math.max(dt,0)
+        if not viewer.active then return end
+        local p=viewer.target
+        if not p or departing[p] then viewer.stop('Jogador saiu do servidor',true);return end
+        local character=p.Character
+        if character~=viewer.character then
+            viewer.clearSource();viewer.character=character;viewer.nextProbe=0
+        end
+        local hum=character and character:FindFirstChildOfClass('Humanoid')
+        local head=character and character:FindFirstChild('Head')
+        local root=character and character:FindFirstChild('HumanoidRootPart')
+        local effects=character and character:FindFirstChild('BodyEffects')
+        if not character or not character.Parent or not hum or hum.Health<=0 or hum:GetState()==Enum.HumanoidStateType.Dead or flagOn(effects,'Dead') then
+            viewer.restore();viewer.clearSource();report('Aguardando renascimento · câmera local restaurada');return
+        end
+        if not head or not head:IsA('BasePart') then head=root end
+        if not head or not root or not root:IsA('BasePart') or not validVector(head.Position) then
+            viewer.restore();report('Personagem ainda não disponível neste cliente');return
+        end
+        local camera=Workspace.CurrentCamera
+        if not camera then viewer.restore();report('Câmera local indisponível');return end
+        local origin=head.Position
+        local aim=readAim(character,origin)
+        local direction=head.CFrame.LookVector
+        if not validVector(direction) or direction.Magnitude<0.001 then direction=Vector3.new(0,0,-1) end
+        direction=direction.Unit
+        local destination=aim or origin+direction*100
+        local position,focus,message
+        if state.viewerMode=='aim' then
+            local forward=(destination-origin).Unit
+            position=origin+forward*math.min(head.Size.Magnitude*0.5+0.15,(destination-origin).Magnitude*0.25);focus=destination
+            message=aim and (viewer.sourceConfirmed and 'Câmera aproximada · mira replicada do jogo' or 'Câmera aproximada · dado de mira com idade não confirmada') or 'Câmera aproximada · direção estimada, sem mira recente'
+        else
+            local forward=root.CFrame.LookVector
+            if not validVector(forward) or forward.Magnitude<0.001 then forward=direction end
+            forward=forward.Unit
+            position=origin-forward*8+Vector3.new(0,3,0);focus=origin+forward*3
+            message='Spectate aproximado · orientação do personagem'
+            if aim then message=message..(viewer.sourceConfirmed and ' · ponto de mira replicado' or ' · ponto de mira com idade não confirmada') end
+        end
+        claim(camera)
+        camera.CameraType=Enum.CameraType.Scriptable;camera.CameraSubject=hum
+        camera.CFrame=CFrame.lookAt(position,focus);camera.Focus=CFrame.new(focus)
+        dot.Visible=false
+        if aim and not state.hideVisuals then
+            local point,onScreen=camera:WorldToViewportPoint(aim)
+            if onScreen and point.Z>0 then dot.Position=UDim2.fromOffset(point.X,point.Y);dot.Visible=true end
+        end
+        report(message)
+    end
+    connect(exitButton.Activated,function() viewer.stop() end)
+end
+
 local espElapsed,statusElapsed=0,0
 local function render(dt)
     aimClock=aimClock+dt
+    local viewingOK=pcall(viewer.step,dt)
+    if not viewingOK then viewer.stop("Observação interrompida por erro; câmera restaurada") end
     ringStroke.Transparency=state.fovTransparency
     local camera=Workspace.CurrentCamera
     if not camera then return end
     local mouse=UIS:GetMouseLocation()
     ring.Position=UDim2.fromOffset(mouse.X,mouse.Y)
     ring.Size=UDim2.fromOffset(state.fov*2,state.fov*2)
-    ring.Visible=not state.hideVisuals and state.camEnabled and state.showFov and not uiOpen and not uiBusy
+    ring.Visible=not viewer.active and not state.hideVisuals and state.camEnabled and state.showFov and not uiOpen and not uiBusy
     espElapsed=espElapsed+dt; statusElapsed=statusElapsed+dt
     if espElapsed>=0.15 then espElapsed=0;updateESP() end
     if cameraActive() then
@@ -938,18 +1105,21 @@ local function addRoster(p)
     if state.playerSelection[id]==nil then state.playerSelection[id]=state.newPlayersSelected end
     local row=create('Frame',{Name='Player_'..id,Size=UDim2.new(1,-2,0,54),BackgroundColor3=palette.panel,BackgroundTransparency=0.25,BorderSizePixel=1,BorderColor3=palette.edge},playersPage.frame)
     create('ImageLabel',{Size=UDim2.fromOffset(40,40),Position=UDim2.fromOffset(7,7),BackgroundTransparency=1,Image='rbxthumb://type=AvatarHeadShot&id='..id..'&w=150&h=150'},row)
-    local name=text(row,p.DisplayName,UDim2.fromOffset(58,6),UDim2.new(1,-118,0,21),15);name.Font=Enum.Font.GothamBold
-    text(row,'@'..p.Name,UDim2.fromOffset(58,29),UDim2.new(1,-118,0,18),12).TextColor3=palette.muted
+    local name=text(row,p.DisplayName,UDim2.fromOffset(58,6),UDim2.new(1,-190,0,21),15);name.Font=Enum.Font.GothamBold
+    text(row,'@'..p.Name,UDim2.fromOffset(58,29),UDim2.new(1,-190,0,18),12).TextColor3=palette.muted
     local check=button(row,'',UDim2.new(1,-43,0,11),UDim2.fromOffset(32,32));check.Name='Select_'..id;check.TextSize=22
     local gradient=check:FindFirstChildOfClass('UIGradient');if gradient then gradient.Color=ColorSequence.new(Color3.new(1,1,1)) end
+    local observe=button(row,'Observar',UDim2.new(1,-121,0,11),UDim2.fromOffset(70,32));observe.Name='Observe_'..id;observe.TextSize=11
     local item={player=p,row=row,check=check};roster[p.UserId]=item
+    item.observeConnection=observe.Activated:Connect(function() viewer.selectId(p.UserId) end)
     item.connection=check.Activated:Connect(function() state.playerSelection[id]=not selectedPlayer(p);selectionChanged() end)
     layoutRoster()
 end
 local function removeRoster(p)
     departing[p]=true
+    if viewer.userId==p.UserId then viewer.stop('Jogador saiu do servidor',true) end
     local item=roster[p.UserId]
-    if item then item.connection:Disconnect();item.row:Destroy();roster[p.UserId]=nil end
+    if item then item.connection:Disconnect();item.observeConnection:Disconnect();item.row:Destroy();roster[p.UserId]=nil end
     if cameraTarget and cameraTarget.player==p then resetCamera() end
     if p.Character then
         local root=p.Character:FindFirstChild('HumanoidRootPart');if root then restore(root) end
@@ -992,6 +1162,25 @@ label(espPage,'Nomes no jogo','Identifique jogadores e NPCs sem cobrir a cena.')
 switch(espPage,'Jogadores','espPlayers')
 switch(espPage,'NPCs / entidades','espEntities')
 
+do
+    label(espPage,'SPECTATE / AIM VIEWER','Câmera aproximada. A câmera real de outro cliente não é replicada. Escolha por nome ou use Observar na lista de Jogadores.')
+    local search=create('TextBox',{Name='SpectateSearch',Position=UDim2.fromOffset(0,slot(espPage,46)),Size=UDim2.new(1,0,0,36),BackgroundColor3=palette.panel,TextColor3=palette.white,BorderSizePixel=0,PlaceholderText='@username ou DisplayName (parcial)',Text='',ClearTextOnFocus=false,Font=Enum.Font.Gotham,TextSize=14},espPage.frame);round(search,7)
+    local select=button(espPage.frame,'Buscar e observar',UDim2.fromOffset(0,slot(espPage,46)),UDim2.new(1,0,0,36));select.Name='SpectateSelect'
+    connect(select.Activated,function() viewer.selectQuery(search.Text) end)
+    connect(search.FocusLost,function(enter) if enter then viewer.selectQuery(search.Text) end end)
+    local result=text(espPage.frame,'Use @username para distinguir nomes iguais.',UDim2.fromOffset(0,slot(espPage,48)),UDim2.new(1,0,0,44),12);result.Name='SpectateSearchResult'
+    viewer.onSelection=function(message) result.Text=message end
+    local list=button(espPage.frame,'Escolher na lista de jogadores',UDim2.fromOffset(0,slot(espPage,46)),UDim2.new(1,0,0,36));list.Name='SpectateRoster'
+    connect(list.Activated,function() navigate('Jogadores') end)
+    switch(espPage,'Ativar observação','viewerEnabled',function() if state.viewerEnabled then viewer.start() else viewer.stop() end end)
+    choice(espPage,'Modo da câmera','viewerMode',{{'character','Personagem'},{'aim','Direção da mira'}})
+    local status=text(espPage.frame,viewer.status,UDim2.fromOffset(0,slot(espPage,86)),UDim2.new(1,0,0,80),12);status.Name='SpectateStatus'
+    viewer.onState=function(message)
+        local target=viewer.target
+        status.Text=(target and (target.DisplayName..' (@'..target.Name..') · ID '..tostring(target.UserId)..'\n') or '')..message
+        controlRefresh.viewerEnabled()
+    end
+end
 label(espPage,'ANTI-AIM','Pulso de velocidade do trecho enviado. C ativa/desativa. Pode afetar a física; começa desligado a cada execução.')
 switch(espPage,'Ativar anti-aim','antiEnabled',anti.restore)
 field(espPage,'Velocidade X','antiX',-100000,100000,1,anti.restore)
@@ -1125,7 +1314,7 @@ notifyTarget=function(message)
 end
 connect(UIS.InputBegan,function(event,processed)
     if not capturing and event.KeyCode==Enum.KeyCode.Escape then
-        trigger.reset(true);resetCamera()
+        trigger.reset(true);resetCamera();viewer.stop('Observação encerrada com Esc')
         return
     end
     if not capturing and latched and event.KeyCode==camBind then resetCamera();return end
@@ -1145,7 +1334,7 @@ connect(UIS.InputBegan,function(event,processed)
         state.antiEnabled=not state.antiEnabled;anti.restore();controlRefresh.antiEnabled();playClick();queueSave()
     elseif event.KeyCode==Enum.KeyCode[state.triggerKeyName] then trigger.press()
     elseif event.KeyCode==hideKey then playClick();showUI(not uiOpen)
-    elseif event.KeyCode==camBind and not uiOpen and not uiBusy then
+    elseif event.KeyCode==camBind and not viewer.active and not uiOpen and not uiBusy then
         resetCamera()
         local camera=Workspace.CurrentCamera
         if state.camEnabled and camera and not closing then
@@ -1165,17 +1354,17 @@ connect(UIS.InputChanged,function(event)
     if sliderDrag and (event==sliderDrag.input or (mouse and sliderDrag.input.UserInputType==Enum.UserInputType.MouseButton1)) then sliderDrag.move(event.Position) end
 end)
 connect(hide.Activated,function() stopCapture();if currentPage then navigate(nil) else showUI(false) end end)
-local api={Settings=state,Save=saveSettings,GetTriggerStatus=function() return trigger.lastStatus end}
+local api={Settings=state,Save=saveSettings,GetTriggerStatus=function() return trigger.lastStatus end,Spectate={Search=viewer.search,SelectUserId=viewer.selectId,Select=viewer.selectQuery,Stop=viewer.stop,Status=function() return viewer.status end}}
 function api.Destroy()
     if not alive then return end
-    saveSettings();alive=false; animationVersion=animationVersion+1; resetCamera()
+    viewer.stop('EVINI encerrado');saveSettings();alive=false; animationVersion=animationVersion+1; resetCamera()
     for _,c in ipairs(connections) do c:Disconnect() end
     for _,t in ipairs(activeTweens) do t:Cancel() end
     if navigationTween then navigationTween:Cancel() end
     menuMotion.cancel();RunService:UnbindFromRenderStep('EVINI_MenuMotion')
     trigger.reset();RunService:UnbindFromRenderStep('EVINI_Trigger')
     RunService:UnbindFromRenderStep('EVINI_Camera')
-    for _,item in pairs(roster) do item.connection:Disconnect() end
+    for _,item in pairs(roster) do item.connection:Disconnect();item.observeConnection:Disconnect() end
     anti.restore();RunService:UnbindFromRenderStep('EVINI_AntiRestore')
     restoreAll(); overlays:Destroy(); gui:Destroy()
     espObjects={}; candidates={}; npcModels={}

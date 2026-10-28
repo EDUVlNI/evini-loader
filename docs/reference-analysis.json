@@ -1,0 +1,35 @@
+{
+  "source_bytes": 161528,
+  "sha256": "cf2e7d61fe69f64a3f2ff42223cd63b8e1acf27e3ab60f7c04c36572b2138af6",
+  "executed": false,
+  "payload_marker": true,
+  "source_hits": {
+    "Spectate": 0,
+    "spectate": 0,
+    "AimViewer": 0,
+    "CameraSubject": 0,
+    "CameraType": 0,
+    "MousePos": 0,
+    "GetPlayers": 0,
+    "UserId": 0,
+    "DisplayName": 0,
+    "CurrentCamera": 0
+  },
+  "encoding": "hex pairs; nH repeats the next decoded byte n times",
+  "decoded_bytes": 73226,
+  "decoded_sha256": "32c125a5fa712d310773d9ed99cc4fa88da0fd81bfaf3976a2c2a8dc36273f45",
+  "payload_hits": {
+    "Spectate": 0,
+    "spectate": 0,
+    "AimViewer": 0,
+    "CameraSubject": 0,
+    "CameraType": 0,
+    "MousePos": 0,
+    "GetPlayers": 0,
+    "UserId": 0,
+    "DisplayName": 0,
+    "CurrentCamera": 0
+  },
+  "printable_runs": [],
+  "conclusion": "Encoded virtualized program; lexical absence does not establish feature absence. VM/opcodes were not executed."
+}
