@@ -28,14 +28,14 @@ assert(s.hideKeyName=='K' and s.camKeyName=='Q','migrate K and resolve old camer
 assert(s.size==12 and s.prediction==.18 and s.playerSelection['3']==false,'preserve preferences')
 assert(s.painEnabled==nil and s.painSize==nil,'removed adapter settings')
 for _,name in ipairs({'TriggerHUD','TriggerStatus','CrewIntro','BevanTitle','Tab_Hitbox (Painhood)','AimViewerStatus','EVINI_AimEffects'}) do assert(absent(name),name..' removed') end
-assert(not find('Hub').Visible and not find('StudioBackdrop').Visible,'start hidden without splash')
+assert(not find('Hub').Visible and not find('StudioBackdrop').Visible,'startup completes with menu hidden')
 uis.focused=true;press('K');tick(.4);assert(not find('Hub').Visible,'typing does not open menu');uis.focused=false
 press('K');tick(.6)
 assert(find('Hub').Visible and find('Navigation').Visible and not find('Content').Visible,'K opens categories')
 assert(find('HubTitle').TextSize==48,'larger EVINI title')
 for _,name in ipairs({'Mira','Hitbox','Triggerbot','Visual','Jogadores','Ajustes'}) do assert(find('Arrival_'..name).GroupTransparency==0,'stagger finishes') end
 local menu=find('Tab_Ajustes');menu.AbsolutePosition=Vector2.new(200,200);menu.AbsoluteSize=Vector2.new(400,56)
-uis.mouse=Vector2.new(560,228);frame(.3)
+menu.MouseEnter:Fire();uis.mouse=Vector2.new(560,228);frame(.3)
 local visual=find('Magnetic_Ajustes')
 assert(visual.Rotation>0 and visual.Position.X.Offset>0,'visual follows pointer gently')
 assert(menu.Position.X.Offset==8,'hit area stays still')
@@ -46,7 +46,7 @@ for _,n in ipairs(nodes) do if n.Name=='HoverScale' and n.Parent==visual then sc
 menu.InputBegan:Fire({UserInputType=Enum.UserInputType.MouseButton1});frame(.1)
 assert(scale.Scale<1,'press compresses visual')
 uis.InputEnded:Fire({UserInputType=Enum.UserInputType.MouseButton1})
-uis.mouse=Vector2.new(1000,1000)
+menu.MouseLeave:Fire();uis.mouse=Vector2.new(1000,1000)
 for i=1,90 do frame(1/60) end
 assert(math.abs(visual.Position.X.Offset)<.01 and math.abs(scale.Scale-1)<.001,'elastic return settles')
 for _,n in ipairs(nodes) do assert(n.Name~='CursorLight' or n.ClassName~='Frame','no rectangular light') end
@@ -96,4 +96,4 @@ find('Close').Activated:Fire();tick(.7)
 assert(EVINI==nil and run.bindings.EVINI_Trigger==nil and run.bindings.EVINI_Camera==nil,'shutdown unbinds')
 assert(enemy.Character.root.Size.X==2,'shutdown restores normal hitbox')
 ''')
-print('PASS: K migration, all categories/back, old preference preservation, no Painhood/HUD/splash, audio edges/knife/mute, hidden effects, animation reversal, viewport fit and shutdown.')
+print('PASS: K migration, all categories/back, old preference preservation, no Painhood/HUD, audio edges/knife/mute, hidden effects, animation reversal, viewport fit and shutdown.')

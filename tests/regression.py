@@ -38,7 +38,7 @@ function UDim2.fromScale(x,y) return UDim2.new(x,0,y,0) end
 math.clamp=function(v,a,b) return math.min(b,math.max(a,v)) end
 nodes={}
 Instance={new=function(class)
- local n={ClassName=class,Name=class,children={},Visible=true,Activated=signal(),InputBegan=signal(),FocusLost=signal(),AbsoluteSize=Vector2.new(446,32),AbsolutePosition=Vector2.new(0,0)}
+ local n={ClassName=class,Name=class,children={},Visible=true,Activated=signal(),MouseEnter=signal(),MouseLeave=signal(),InputBegan=signal(),FocusLost=signal(),AbsoluteSize=Vector2.new(446,32),AbsolutePosition=Vector2.new(0,0)}
  function n:GetPropertyChangedSignal(key) self.signals=self.signals or {};self.signals[key]=self.signals[key] or signal();return self.signals[key] end
  function n:IsA(kind) return self.ClassName==kind or (kind=='BasePart' and self.ClassName=='Part') end
  function n:GetChildren() local out={};for _,child in pairs(self.children) do if child.Parent==self then out[#out+1]=child end end;return out end
@@ -86,6 +86,8 @@ run={Heartbeat=signal(),bindings={}}
 function run:BindToRenderStep(name,priority,fn) self.bindings[name]=fn end
 function run:UnbindFromRenderStep(name) self.bindings[name]=nil end
 function frame(dt) for _,fn in pairs(run.bindings) do fn(dt) end end
+function uis:GetMouseDelta() return self.delta or Vector2.new(0,0) end
+CFrame.new=function(v) return {Position=v} end
 local camera={CFrame=CFrame.lookAt(Vector3.new(0,0,0),Vector3.new(0,0,100)),ViewportSize=Vector2.new(1200,800)}
 function camera:WorldToViewportPoint(pos) return Vector3.new(400+pos.X*5,300-pos.Y*5,pos.Z),pos.Z>0 end
 workspace.CurrentCamera=camera

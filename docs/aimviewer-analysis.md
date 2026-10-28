@@ -1,3 +1,22 @@
+# Correções 5.4 — estado atual
+
+- Causa da câmera presa: `CFrame.lookAt` era calculado por frame com a direção da cabeça/raiz ou ponto de mira. Agora apenas a posição é acompanhada; yaw/pitch pertencem ao observador e usam GetMouseDelta. Scriptable é mantido por um único controlador; CameraSubject não é alterado para o alvo. Snapshot inclui MouseBehavior e MouseIconEnabled.
+- Causa da linha ausente: a implementação 5.2/5.3 só criava um ponto vermelho. Agora há Beam branco de largura 0,035 com duas âncoras locais não colidíveis/não consultáveis. Oculta imediatamente ao desligar ou trocar de alvo e é destruído no encerramento.
+- Fonte aceita: MousePos/MousePosition Vector3Value ou CFrameValue no personagem/BodyEffects. Só depois de alteração observada e por até 0,75 s, rejeitando vetores inválidos e distância acima de 5.000 studs. A existência desse campo não prova que corresponda ao cursor ou resultado balístico: a semântica e disponibilidade precisam de validação no servidor alvo. Sem dado, não há linha substituta.
+- Anti-Aim removido do código, configurações e inputs.
+- Hover agora usa MouseEnter/MouseLeave do hit target estático, com um único item ativo. O conteúdo visual se move, sem deslocar a área de clique.
+- Inicialização usa marcos reais de montagem, com yields para renderizar a barra; não representa download. Fade da barra precede o fade do degradê e menu fica fechado. Camadas de carregamento são destruídas.
+
+Validação: testes simulados de mouse independente, acompanhamento de posição, seleção/ambiguidade, fontes válidas/inválidas/expiradas, mudança de jogador, morte/respawn/saída, substituição/restauração da câmera e mouse, hover isolado, carregamento, K e limpeza. Compilação Luau. Não houve sessão de Roblox conectada: fluidez, oclusão/visibilidade do Beam, input do executor e dados reais do Da Hood permanecem sem validação em jogo.
+
+A referência foi baixada novamente em 2026-10-28: mesmo hash e resultado de análise estática abaixo, sem execução. Não foi possível recuperar sua lógica de AimViewer da camada virtualizada.
+
+Em experiência própria, um LocalScript precisa publicar direção/ponto de mira explicitamente por RemoteEvent; o servidor deve validar identidade, vetores, origem, distância, frequência e permissões dos espectadores e enviar atualizações com timestamp/heartbeat. Isso requer acesso ao projeto/servidor e não foi instalado no Da Hood. Não enviamos remotes desconhecidos para tentar obter dados privados.
+
+---
+
+# Registro histórico da análise 5.2 (substituído pelos comportamentos acima)
+
 # EVINI 5.2 — análise e correção de Spectate / AimViewer
 
 Data: 28/10/2026. Base analisada: `4f7b0b61ea9445382a518b5956539bd4405595ff` (5.1); implementação anterior consultada no commit `f3db8869b5cab1d521d725e46af899ec05f6a02a` (4.8).
