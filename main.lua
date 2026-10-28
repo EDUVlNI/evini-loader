@@ -1,4 +1,4 @@
--- EVINI 5.2: fonte independente. Nao carrega o Nitrogen.
+-- EVINI 5.3: fonte independente. Nao carrega o Nitrogen.
 -- Alteracoes de hitbox sao locais; o servidor pode ignora-las.
 local Players = game:GetService('Players')
 local UIS = game:GetService('UserInputService')
@@ -831,9 +831,10 @@ local destroyed=false
 local pages,tabs={},{}
 local currentPage=nil
 local navigationTween=nil
-local menuMotion={items={},version=0,tweens={}}
+local menuMotion={items={},version=0,tweens={},ready=false,time=0}
 function menuMotion.cancel()
-    menuMotion.version=menuMotion.version+1
+    menuMotion.version=menuMotion.version+1;menuMotion.ready=false
+    for _,item in pairs(menuMotion.items) do item.pressed=false end
     for _,t in ipairs(menuMotion.tweens) do t:Cancel() end
     menuMotion.tweens={}
 end
@@ -850,6 +851,9 @@ function menuMotion.arrive()
             end)
         end
     end
+    task.delay(state.reduceMotion and 0 or 0.525,function()
+        if alive and version==menuMotion.version then menuMotion.ready=true end
+    end)
 end
 local function refreshTabs() end
 local function navigate(name)
@@ -893,27 +897,30 @@ local function showUI(open,after)
 end
 -- Studio resources for settings/players; simple native geometry for the other categories.
 local function categoryIcon(parent,name)
+    local surfaces,strokes={},{}
     local holder=create('Frame',{Name='CategoryIcon',Position=UDim2.fromOffset(0,16),Size=UDim2.fromOffset(24,24),BackgroundTransparency=1},parent)
     local assets={Ajustes='GameSettingsTab@2x.png',Jogadores='PlayersTabIcon@2x.png',Mira='CaptureTab@2x.png'}
     if assets[name] then
-        create('ImageLabel',{Name='StudioIcon',Size=UDim2.fromScale(1,1),BackgroundTransparency=1,Image='rbxasset://textures/ui/Settings/MenuBarIcons/'..assets[name],ImageColor3=palette.white,ScaleType=Enum.ScaleType.Fit},holder)
-        return
+        surfaces[1]=create('ImageLabel',{Name='StudioIcon',Size=UDim2.fromScale(1,1),BackgroundTransparency=1,Image='rbxasset://textures/ui/Settings/MenuBarIcons/'..assets[name],ImageColor3=palette.white,ScaleType=Enum.ScaleType.Fit},holder)
+        return surfaces,strokes
     end
     local function line(x,y,w,h,rotation)
-        return create('Frame',{Position=UDim2.fromOffset(x,y),Size=UDim2.fromOffset(w,h),Rotation=rotation or 0,BackgroundColor3=palette.white,BorderSizePixel=0},holder)
+        local leaf=create('Frame',{Position=UDim2.fromOffset(x,y),Size=UDim2.fromOffset(w,h),Rotation=rotation or 0,BackgroundColor3=palette.white,BorderSizePixel=0},holder)
+        surfaces[#surfaces+1]=leaf;return leaf
     end
     if name=='Hitbox' then
         local box=create('Frame',{Position=UDim2.fromOffset(3,3),Size=UDim2.fromOffset(18,18),BackgroundTransparency=1},holder)
-        round(box,3);create('UIStroke',{Color=palette.white,Thickness=1.5},box)
+        round(box,3);strokes[#strokes+1]=create('UIStroke',{Color=palette.white,Thickness=1.5},box)
     elseif name=='Triggerbot' then
         local ring=create('Frame',{Position=UDim2.fromOffset(5,5),Size=UDim2.fromOffset(14,14),BackgroundTransparency=1},holder)
-        round(ring,20);create('UIStroke',{Color=palette.white,Thickness=1.5},ring)
+        round(ring,20);strokes[#strokes+1]=create('UIStroke',{Color=palette.white,Thickness=1.5},ring)
         line(11,0,2,6);line(11,18,2,6);line(0,11,6,2);line(18,11,6,2)
     elseif name=='Visual' then
         local eye=create('Frame',{Position=UDim2.fromOffset(1,5),Size=UDim2.fromOffset(22,14),BackgroundTransparency=1},holder)
-        round(eye,10);create('UIStroke',{Color=palette.white,Thickness=1.5},eye)
+        round(eye,10);strokes[#strokes+1]=create('UIStroke',{Color=palette.white,Thickness=1.5},eye)
         local pupil=line(9,9,6,6);round(pupil,6)
     end
+    return surfaces,strokes
 end
 local function page(name,index)
     local frame=create('ScrollingFrame',{Name=name,Position=UDim2.fromOffset(0,0),Size=UDim2.fromScale(1,1),BackgroundTransparency=1,BorderSizePixel=0,ScrollBarThickness=3,ScrollBarImageColor3=palette.muted,CanvasSize=UDim2.fromOffset(0,0),Visible=false},body)
@@ -922,14 +929,21 @@ local function page(name,index)
     pages[name]={frame=content,scroll=frame,y=0}
     local group=create('CanvasGroup',{Name='Arrival_'..name,Position=UDim2.fromOffset(8,8+(index-1)*66),Size=UDim2.new(1,-25,0,64),BackgroundTransparency=1},sidebar)
     local b=button(group,'',UDim2.fromOffset(8,4),UDim2.new(1,-16,0,56));b.Name='Tab_'..name;b.BackgroundTransparency=1
-    local hoverScale=create('UIScale',{Name='HoverScale',Scale=1},b)
-    local glow=create('Frame',{Name='CursorLight',Position=UDim2.fromOffset(0,0),Size=UDim2.fromOffset(84,48),BackgroundColor3=palette.white,BackgroundTransparency=1,BorderSizePixel=0},b);round(glow,24)
-    menuMotion.items[index]={group=group,button=b,scale=hoverScale,glow=glow,y=8+(index-1)*66,x=0,dy=0,weight=0}
-    categoryIcon(b,name)
-    local caption=text(b,name=='Mira' and 'Cam Lock' or name,UDim2.fromOffset(42,0),UDim2.new(1,-82,1,0),20)
+    -- Stable hit region: only this visual child follows the pointer.
+    local visual=create('Frame',{Name='Magnetic_'..name,Size=UDim2.fromScale(1,1),Position=UDim2.fromOffset(0,0),BackgroundTransparency=1,Rotation=0},b)
+    local hoverScale=create('UIScale',{Name='HoverScale',Scale=1},visual)
+    local surfaces,strokes=categoryIcon(visual,name)
+    local caption=text(visual,name=='Mira' and 'Cam Lock' or name,UDim2.fromOffset(42,0),UDim2.new(1,-42,1,0),20)
     caption.Name='CategoryLabel';caption.Font=Enum.Font.GothamMedium;caption.TextWrapped=false
-    local arrow=text(b,'›',UDim2.new(1,-22,0,0),UDim2.fromOffset(22,56),23);arrow.TextColor3=palette.muted
-    create('Frame',{Position=UDim2.new(0,0,1,0),Size=UDim2.new(1,0,0,1),BackgroundColor3=palette.edge,BackgroundTransparency=0.65,BorderSizePixel=0},b)
+    -- The gradient is clipped by glyph alpha: no rectangular light surface.
+    surfaces[#surfaces+1]=caption
+    local lights={}
+    for _,surface in ipairs(surfaces) do lights[#lights+1]=create('UIGradient',{Name='Shine',Rotation=18,Color=ColorSequence.new(Color3.fromRGB(215,215,220))},surface) end
+    local item={group=group,button=b,visual=visual,scale=hoverScale,lights=lights,strokes=strokes,lightClock=0,y=8+(index-1)*66,x=0,dy=0,vx=0,vy=0,weight=0,press=0,pressed=false}
+    menuMotion.items[index]=item
+    connect(b.InputBegan,function(input)
+        if menuMotion.ready and not uiBusy and (input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch) then item.pressed=true end
+    end)
     tabs[name]=b
     connect(b.Activated,function() if not uiBusy then navigate(name) end end)
     return pages[name]
@@ -940,23 +954,63 @@ local espPage=page('Visual',4)
 local playersPage=page('Jogadores',5)
 local settingsPage=page('Ajustes',6)
 page('Triggerbot',3)
-RunService:BindToRenderStep('EVINI_MenuMotion',Enum.RenderPriority.Camera.Value+3,function(dt)
+function menuMotion.release()
+    for _,item in pairs(menuMotion.items) do item.pressed=false end
+end
+connect(UIS.InputEnded,function(input)
+    if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then menuMotion.release() end
+end)
+connect(UIS.WindowFocusReleased,menuMotion.release)
+-- One controller for all categories. Bounded spring substeps remain stable after frame stalls.
+function menuMotion.step(dt)
     if not alive or not uiOpen then return end
+    dt=math.clamp(dt,0,0.1);menuMotion.time=menuMotion.time+dt
     local mouse=UIS:GetMouseLocation()
     for _,item in pairs(menuMotion.items) do
         local b=item.button;local pos,size=b.AbsolutePosition,b.AbsoluteSize
-        local over=uiOpen and not uiBusy and not currentPage and not state.reduceMotion and mouse.X>=pos.X and mouse.X<=pos.X+size.X and mouse.Y>=pos.Y and mouse.Y<=pos.Y+size.Y
+        local over=menuMotion.ready and not uiBusy and not currentPage and mouse.X>=pos.X-10 and mouse.X<=pos.X+size.X+10 and mouse.Y>=pos.Y-8 and mouse.Y<=pos.Y+size.Y+8
         local x=over and math.clamp(((mouse.X-pos.X)/math.max(1,size.X)-0.5)*2,-1,1) or 0
         local y=over and math.clamp(((mouse.Y-pos.Y)/math.max(1,size.Y)-0.5)*2,-1,1) or 0
-        local blend=state.reduceMotion and 1 or 1-math.exp(-math.max(0,dt)*14)
-        item.x=item.x+(x-item.x)*blend;item.dy=item.dy+(y-item.dy)*blend
+        local blend=1-math.exp(-dt*14)
         item.weight=item.weight+((over and 1 or 0)-item.weight)*blend
-        b.Position=UDim2.fromOffset(8+item.x*3,4+item.dy*2-item.weight*2)
-        b.Rotation=item.x*0.8;item.scale.Scale=1+item.weight*0.012
-        item.glow.Position=UDim2.new(0.5,item.x*math.max(0,size.X/uiScale.Scale/2-50)-42,0,4+item.dy*2)
-        item.glow.BackgroundTransparency=1-item.weight*0.06
+        item.press=item.press+((item.pressed and over and 1 or 0)-item.press)*(1-math.exp(-dt*24))
+        if state.reduceMotion then item.x=0;item.dy=0;item.vx=0;item.vy=0;item.press=0
+        else
+            local steps=math.max(1,math.ceil(dt*120));local h=dt/steps
+            for _=1,steps do
+                item.vx=item.vx+((x-item.x)*230-item.vx*24)*h
+                item.vy=item.vy+((y-item.dy)*230-item.vy*24)*h
+                item.x=item.x+item.vx*h;item.dy=item.dy+item.vy*h
+            end
+        end
+        item.visual.Position=UDim2.fromOffset(item.x*4,item.dy*2)
+        item.visual.Rotation=item.x*0.8
+        item.scale.Scale=state.reduceMotion and 1 or 1+item.weight*0.012-item.press*0.025
+        item.lightClock=item.lightClock+dt
+        if item.lightClock>=1/30 then
+            item.lightClock=0
+            -- Original JOGAR channels composited into one glyph-clipped gradient.
+            -- CursorLight follows the mouse; Shine sweeps; Slash1/2 add faint diagonal bands.
+            local keys={};local cursor=0.5+item.x*0.42
+            local sweep=(menuMotion.time*0.23)%1*2-0.5
+            local drift=math.sin(menuMotion.time*0.8)*0.03+item.x*0.025
+            for j=0,12 do
+                local u=j/12
+                local cursorLight=math.max(0,1-math.abs(u-cursor)/0.35)*14
+                local shine=math.max(0,1-math.abs(u-sweep)/0.16)*18
+                local slash1=math.max(0,1-math.abs(u-0.31-drift)/0.07)*5
+                local slash2=math.max(0,1-math.abs(u-0.51-drift)/0.07)*5
+                local shade=math.min(255,215+item.weight*(8+cursorLight+shine+slash1+slash2))
+                keys[#keys+1]=ColorSequenceKeypoint.new(u,Color3.fromRGB(shade,shade,math.min(255,shade+3)))
+            end
+            local colors=ColorSequence.new(keys)
+            for _,light in ipairs(item.lights) do light.Color=colors;light.Offset=Vector2.new(0,item.dy*0.08) end
+            local shade=215+item.weight*30
+            for _,stroke in ipairs(item.strokes) do stroke.Color=Color3.fromRGB(shade,shade,math.min(255,shade+3)) end
+        end
     end
-end)
+end
+RunService:BindToRenderStep('EVINI_MenuMotion',Enum.RenderPriority.Camera.Value+3,menuMotion.step)
 local function subPage() return {frame=create('Frame',{BackgroundTransparency=1,Visible=false,Size=UDim2.new(1,0,0,0)},camPage.frame),y=0} end
 local predPage=subPage()
 local function slot(p,h)

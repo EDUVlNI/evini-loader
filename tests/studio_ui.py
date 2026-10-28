@@ -30,15 +30,26 @@ assert(s.painEnabled==nil and s.painSize==nil,'removed adapter settings')
 for _,name in ipairs({'TriggerHUD','TriggerStatus','CrewIntro','BevanTitle','Tab_Hitbox (Painhood)','AimViewerStatus','EVINI_AimEffects'}) do assert(absent(name),name..' removed') end
 assert(not find('Hub').Visible and not find('StudioBackdrop').Visible,'start hidden without splash')
 uis.focused=true;press('K');tick(.4);assert(not find('Hub').Visible,'typing does not open menu');uis.focused=false
-press('K');tick(.4)
+press('K');tick(.6)
 assert(find('Hub').Visible and find('Navigation').Visible and not find('Content').Visible,'K opens categories')
 assert(find('HubTitle').TextSize==48,'larger EVINI title')
 for _,name in ipairs({'Mira','Hitbox','Triggerbot','Visual','Jogadores','Ajustes'}) do assert(find('Arrival_'..name).GroupTransparency==0,'stagger finishes') end
 local menu=find('Tab_Ajustes');menu.AbsolutePosition=Vector2.new(200,200);menu.AbsoluteSize=Vector2.new(400,56)
 uis.mouse=Vector2.new(560,228);frame(.3)
-assert(menu.Rotation>0 and menu.Position.X.Offset>8,'menu follows pointer gently')
-s.reduceMotion=true;frame(.1);assert(menu.Rotation==0 and menu.Position.X.Offset==8,'reduced motion disables follow');s.reduceMotion=false
+local visual=find('Magnetic_Ajustes')
+assert(visual.Rotation>0 and visual.Position.X.Offset>0,'visual follows pointer gently')
+assert(menu.Position.X.Offset==8,'hit area stays still')
+s.reduceMotion=true;frame(.1);assert(visual.Rotation==0 and visual.Position.X.Offset==0,'reduced motion disables follow');s.reduceMotion=false
+uis.mouse=Vector2.new(560,228);frame(.1)
+local scale
+for _,n in ipairs(nodes) do if n.Name=='HoverScale' and n.Parent==visual then scale=n end end
+menu.InputBegan:Fire({UserInputType=Enum.UserInputType.MouseButton1});frame(.1)
+assert(scale.Scale<1,'press compresses visual')
+uis.InputEnded:Fire({UserInputType=Enum.UserInputType.MouseButton1})
 uis.mouse=Vector2.new(1000,1000)
+for i=1,90 do frame(1/60) end
+assert(math.abs(visual.Position.X.Offset)<.01 and math.abs(scale.Scale-1)<.001,'elastic return settles')
+for _,n in ipairs(nodes) do assert(n.Name~='CursorLight' or n.ClassName~='Frame','no rectangular light') end
 
 for _,name in ipairs({'Mira','Hitbox','Triggerbot','Visual','Jogadores','Ajustes'}) do
  find('Tab_'..name).Activated:Fire();tick(.3)

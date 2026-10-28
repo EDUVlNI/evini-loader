@@ -1,10 +1,16 @@
-# EVINI 5.2 · Da Hood
+# EVINI 5.3 · Da Hood
 
 Interface refeita a partir do painel de Configurações do projeto do Roblox Studio: coluna à esquerda, degradê preto horizontal, tipografia Gotham, controles claros e abertura/fechamento com fade e deslocamento. Sem a moldura antiga, tela de carregamento ou Play. Título EVINI ampliado, títulos de categoria menores, espaçamento revisado e ícones brancos; Ajustes usa a mesma engrenagem local do painel original do Studio. As categorias entram em sequência com fade e deslocamento; ao passar o mouse, têm inclinação sutil e brilho que acompanha o cursor. Reduzir animações desativa esses movimentos.
 
 ```lua
 loadstring(game:HttpGet("https://raw.githubusercontent.com/EDUVlNI/evini-loader/main/main.lua"))()
 ```
+
+## Interação do menu (5.3)
+
+Botões sem caixas ou divisórias: ícone e texto acompanham o cursor, com inclinação discreta, retorno amortecido e compressão ao pressionar. A área clicável permanece fixa. Os reflexos neutros são recortados pelas letras e imagens, adaptando os canais CursorLight, Shine e Slash do JOGAR do projeto Studio. Um único controlador atualiza os seis botões; iluminação limitada a 30 atualizações por segundo. A entrada escalonada termina antes de liberar os efeitos.
+
+A referência recuperada contém o estado “CARREGANDO...” do botão JOGAR, mas não foi localizada a tela com barra de progresso solicitada. Nenhuma nova tela foi criada; a abertura continua pela tecla K. Compilação e simulações não substituem a conferência visual no Roblox.
 
 ## Abrir e navegar
 

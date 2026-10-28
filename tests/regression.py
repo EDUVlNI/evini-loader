@@ -94,6 +94,7 @@ wall=nil
 function workspace:Raycast() return wall end
 function typeof(v) if type(v)=='table' and v.X~=nil and v.Y~=nil and v.Z~=nil then return 'Vector3' end;return type(v) end
 ColorSequence={new=function(value) return value end};NumberSequence={new=function(value) return value end}
+ColorSequenceKeypoint={new=function(t,c) return {Time=t,Value=c} end}
 NumberSequenceKeypoint={new=function(t,v) return {Time=t,Value=v} end}
 RaycastParams={new=function() return {} end}
 tween={}
